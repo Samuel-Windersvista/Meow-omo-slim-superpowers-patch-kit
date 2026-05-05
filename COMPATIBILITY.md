@@ -16,10 +16,13 @@ If your local versions are significantly older, upgrade first.
 ## What to check when versions differ
 
 - `src/cli/skills.ts` (touched by patches 0001 and 0003)
-- `src/cli/superpowers-policy.ts` (introduced by 0001, modified by 0003)
+- `src/cli/superpowers-policy.ts` (introduced by 0001, modified by 0003 and 0004)
+- `src/cli/superpowers-policy.test.ts` (introduced by 0001, extended by 0004)
 - `src/config/agent-mcps.ts` (touched by patch 0002)
-- `src/index.ts` (touched by patch 0002)
+- `src/index.ts` (touched by patches 0002 and 0004)
+- `src/agents/index.ts` (touched by patch 0004 — `applyClassification` mode='primary' check)
 - prompt bridge loading behavior
 - OMO-built-in MCP names
 - Superpowers skill inventory
 - For patch 0003 specifically: presence of `getCustomAgentNames()` discovery path + `buildCustomAgentDefinition()` in `src/agents/index.ts` (these are how custom agents — including the best-of-N variants — get registered; if upstream changes the discovery mechanism, patch 0003's policy resolution still applies but the custom agent registration may need adjustment)
+- For patch 0004 specifically: presence of literal `agentName === 'orchestrator'` checks in `src/index.ts` (post-file-tool nudge hook around line 229, chat.system.transform hook around line 679) and in `src/agents/index.ts` `applyClassification` (mode='primary' branch). If upstream renames or restructures these sites, the patch will need re-targeting but the underlying generalization is straightforward (`isOrchestratorAgent(name)` instead of `name === 'orchestrator'`).

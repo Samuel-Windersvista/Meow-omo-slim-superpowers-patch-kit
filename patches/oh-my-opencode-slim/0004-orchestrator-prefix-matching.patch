@@ -1,0 +1,175 @@
+diff --git a/src/agents/index.ts b/src/agents/index.ts
+index a1119d4..068dd20 100644
+--- a/src/agents/index.ts
++++ b/src/agents/index.ts
+@@ -1,5 +1,6 @@
+ import type { AgentConfig as SDKAgentConfig } from '@opencode-ai/sdk/v2';
+ import { getSkillPermissionsForAgent } from '../cli/skills';
++import { isOrchestratorAgent } from '../cli/superpowers-policy';
+ import {
+   type AgentOverrideConfig,
+   ALL_AGENT_NAMES,
+@@ -435,7 +436,10 @@ export function getAgentConfigs(
+       sdkConfig.hidden = true;
+     } else if (isSubagent(name)) {
+       sdkConfig.mode = 'subagent';
+-    } else if (name === 'orchestrator') {
++    } else if (isOrchestratorAgent(name)) {
++      // "orchestrator", "orchestrator-beta", "orchestrator2", ... all become
++      // primary agents so users can switch to a fallback when their main
++      // orchestrator's model rate-limits.
+       sdkConfig.mode = 'primary';
+     } else {
+       sdkConfig.mode = 'subagent';
+diff --git a/src/cli/superpowers-policy.test.ts b/src/cli/superpowers-policy.test.ts
+index 14ba734..fdc4cbd 100644
+--- a/src/cli/superpowers-policy.test.ts
++++ b/src/cli/superpowers-policy.test.ts
+@@ -3,6 +3,7 @@ import {
+   FALLBACK_SUPERPOWERS_SKILLS,
+   buildSuperpowersSkillPermissions,
+   getAllowedSuperpowersSkillsForAgent,
++  isOrchestratorAgent,
+ } from './superpowers-policy';
+ 
+ describe('superpowers policy', () => {
+@@ -40,4 +41,40 @@ describe('superpowers policy', () => {
+     expect(buildSuperpowersSkillPermissions('fixer', futureSkills)['future-superpowers-skill']).toBe('deny');
+     expect(buildSuperpowersSkillPermissions('orchestrator', futureSkills)['future-superpowers-skill']).toBe('allow');
+   });
++
++  describe('isOrchestratorAgent()', () => {
++    it('matches the literal orchestrator', () => {
++      expect(isOrchestratorAgent('orchestrator')).toBe(true);
++    });
++
++    it('matches dash-suffix variants like orchestrator-beta', () => {
++      expect(isOrchestratorAgent('orchestrator-beta')).toBe(true);
++      expect(isOrchestratorAgent('orchestrator-alpha')).toBe(true);
++      expect(isOrchestratorAgent('orchestrator-fallback')).toBe(true);
++    });
++
++    it('matches no-separator prefix variants like orchestrator2', () => {
++      expect(isOrchestratorAgent('orchestrator2')).toBe(true);
++      expect(isOrchestratorAgent('orchestratorx')).toBe(true);
++    });
++
++    it('does not match unrelated agents that happen to contain "orchestrator" mid-name', () => {
++      expect(isOrchestratorAgent('fixer')).toBe(false);
++      expect(isOrchestratorAgent('oracle')).toBe(false);
++      expect(isOrchestratorAgent('my-orchestrator')).toBe(false);
++      expect(isOrchestratorAgent('preorchestrator')).toBe(false);
++    });
++  });
++
++  it('grants full superpowers allowlist to orchestrator-prefix variants', () => {
++    const permissionsBeta = buildSuperpowersSkillPermissions('orchestrator-beta', FALLBACK_SUPERPOWERS_SKILLS);
++    expect(permissionsBeta['brainstorming']).toBe('allow');
++    expect(permissionsBeta['writing-plans']).toBe('allow');
++    expect(permissionsBeta['subagent-driven-development']).toBe('allow');
++    expect(permissionsBeta['using-superpowers']).toBe('deny');
++
++    const permissionsX = buildSuperpowersSkillPermissions('orchestrator2', FALLBACK_SUPERPOWERS_SKILLS);
++    expect(permissionsX['brainstorming']).toBe('allow');
++    expect(permissionsX['writing-plans']).toBe('allow');
++  });
+ });
+diff --git a/src/cli/superpowers-policy.ts b/src/cli/superpowers-policy.ts
+index edb8a77..ad5cbb3 100644
+--- a/src/cli/superpowers-policy.ts
++++ b/src/cli/superpowers-policy.ts
+@@ -79,6 +79,19 @@ export function resolveBaseAgentName(agentName: string): string {
+   return agentName;
+ }
+ 
++/**
++ * Detect whether an agent name should be treated as an orchestrator.
++ * Matches the literal "orchestrator" plus any prefix-extended name like
++ * "orchestrator-beta", "orchestrator2", "orchestratorx", etc. Used to make
++ * orchestrator-shaped variant agents (intended as fallback primary agents
++ * when the main orchestrator's model rate-limits) inherit orchestrator's
++ * runtime behaviour: bridge-prompt injection, post-file-tool nudge,
++ * mode='primary' classification, and full superpowers skill allowance.
++ */
++export function isOrchestratorAgent(agentName: string): boolean {
++  return agentName.startsWith('orchestrator');
++}
++
+ let cachedSuperpowersSkills: string[] | null = null;
+ 
+ function getOpencodeConfigDir(): string {
+@@ -124,14 +137,18 @@ export function getAllowedSuperpowersSkillsForAgent(
+   agentName: string,
+   superpowersSkills: readonly string[] = discoverSuperpowersSkillNames(),
+ ): Set<string> {
++  // Orchestrator-shaped agents (literal "orchestrator", "orchestrator-beta",
++  // "orchestrator2", etc.) get the full superpowers allowlist so a fallback
++  // orchestrator can do real orchestration work when the main one is
++  // rate-limited.
++  if (isOrchestratorAgent(agentName)) {
++    return new Set(superpowersSkills.filter((name) => name !== 'using-superpowers'));
++  }
++
+   // Resolve variant suffix names (e.g., "fixer-alpha" -> "fixer") so they
+   // inherit the base agent's policy without per-variant entries.
+   const resolvedName = resolveBaseAgentName(agentName);
+ 
+-  if (resolvedName === 'orchestrator') {
+-    return new Set(superpowersSkills.filter((name) => name !== 'using-superpowers'));
+-  }
+-
+   const explicit = new Set(AGENT_ALLOWED_SUPERPOWERS[resolvedName] ?? []);
+   const allowed = new Set<string>();
+ 
+diff --git a/src/index.ts b/src/index.ts
+index 005397a..929cb81 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -1,6 +1,7 @@
+ import type { Plugin } from '@opencode-ai/plugin';
+ import { createAgents, getAgentConfigs, getDisabledAgents } from './agents';
+ import { buildOrchestratorPrompt } from './agents/orchestrator';
++import { isOrchestratorAgent } from './cli/superpowers-policy';
+ import { loadPluginConfig, type MultiplexerConfig } from './config';
+ import { buildAgentMcpPermissionRules } from './config/agent-mcps';
+ import { CouncilManager } from './council';
+@@ -222,8 +223,10 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
+ 
+     // Initialize post-file-tool nudge hook
+     postFileToolNudgeHook = createPostFileToolNudgeHook({
+-      shouldInject: (sessionID) =>
+-        sessionAgentMap.get(sessionID) === 'orchestrator',
++      shouldInject: (sessionID) => {
++        const agentName = sessionAgentMap.get(sessionID);
++        return !!agentName && isOrchestratorAgent(agentName);
++      },
+     });
+ 
+     chatHeadersHook = createChatHeadersHook(ctx);
+@@ -669,7 +672,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
+       const agentName = input.sessionID
+         ? sessionAgentMap.get(input.sessionID)
+         : undefined;
+-      if (agentName === 'orchestrator') {
++      if (agentName && isOrchestratorAgent(agentName)) {
+         const alreadyInjected = output.system.some(
+           (s) =>
+             typeof s === 'string' &&
+@@ -678,11 +681,12 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
+         );
+         if (!alreadyInjected) {
+           // Prepend the orchestrator prompt to the system array. Use the
+-          // resolved prompt from the orchestrator agent definition (which
+-          // includes any custom replacement or append from orchestrator.md
+-          // / orchestrator_append.md) Fall back to
+-          // buildOrchestratorPrompt only if the resolved prompt is
+-          // missing.
++          // resolved prompt from the *literal* orchestrator agent definition
++          // (which includes any custom replacement or append from
++          // orchestrator.md / orchestrator_append.md). Variant orchestrators
++          // ("orchestrator-beta", etc.) inherit the same prompt so they
++          // behave identically to the main orchestrator. Fall back to
++          // buildOrchestratorPrompt only if the resolved prompt is missing.
+           const orchestratorDef = agentDefs.find(
+             (a) => a.name === 'orchestrator',
+           );

@@ -56,11 +56,19 @@ That snippet intentionally disables the default OpenCode `general` and `explore`
    git apply /absolute/path/to/omo-slim-superpowers-patch-kit/patches/oh-my-opencode-slim/0002-omo-managed-mcp-gating.patch
    ```
 
+   Recommended — apply patch 0004 to enable orchestrator-prefix-matching (lets you define `orchestrator-beta` and similar fallback primary orchestrators):
+
+   ```bash
+   git apply /absolute/path/to/omo-slim-superpowers-patch-kit/patches/oh-my-opencode-slim/0004-orchestrator-prefix-matching.patch
+   ```
+
    Optional — apply patch 0003 ONLY if you intend to install the best-of-N + fast-lane example setup from `opencode-config/`:
 
    ```bash
    git apply /absolute/path/to/omo-slim-superpowers-patch-kit/patches/oh-my-opencode-slim/0003-best-of-n-agent-name-resolution.patch
    ```
+
+   Note: if applying both 0003 and 0004, apply 0003 first, then 0004 (the order they ship in this repo).
 
 3. If patch hunks fail, compare the affected files against `snapshots/` and port the changes manually.
 
@@ -116,6 +124,24 @@ If you applied patch 0003 in step 2 above, you can also install the example best
 5. Optional: review the design and implementation plan docs at `opencode-config/docs/plans/` for the maintainer's full reasoning behind the variant assignments and skill design.
 
 The 20 new agents will be discovered by OMO Slim's `getCustomAgentNames()` mechanism (same code path as `laborer`). Variant agents inherit base superpowers via patch 0003's `resolveBaseAgentName()`. Markdown files at `~/.config/opencode/agents/` carry `hidden`/`permission`/`mode` (OpenCode-native fields OMO Slim does not manage).
+
+## Optional: register a fallback orchestrator (requires patch 0004)
+
+If you applied patch 0004, you can register additional primary orchestrators that mirror the main `orchestrator` behavior with a different model. This is useful for surviving 5-hour rolling rate limits without abandoning the session.
+
+Add to your `oh-my-opencode-slim.jsonc` under `presets.superpowers-bridge`:
+
+```jsonc
+"orchestrator-beta": {
+  "model": "openai/gpt-5.4",
+  "variant": "xhigh",
+  "mcps": ["*", "!context7"]
+}
+```
+
+After restart, `orchestrator-beta` appears in the OpenCode agent picker as a primary agent. Switching to it preserves the bridge prompt, MCPs, permissions, and superpowers skill access — only the underlying model differs.
+
+Any agent name starting with `orchestrator` works (e.g. `orchestrator-fallback`, `orchestrator2`). Skip this section if you do not want fallback orchestrators.
 
 ## If your version differs
 

@@ -72,3 +72,31 @@ For each best-of-N agent:
 ### Best-of-n-with-judge skill
 
 A separate user-level skill (in `opencode-config/skills/best-of-n-with-judge/`) orchestrates fan-out: pre-flight verification, git worktree setup, parallel candidate dispatch, hard-gate filter, blind oracle review, vote aggregation, council arbitration on splits, redo loop on no-winner, winner landing via cherry-pick or squash, and unconditional cleanup. See the skill's `SKILL.md` for full pipeline details.
+
+## Orchestrator prefix matching (patch 0004, v1.2.0)
+
+OMO Slim originally hardcoded the literal string `'orchestrator'` in four runtime sites:
+
+1. `src/cli/superpowers-policy.ts` `getAllowedSuperpowersSkillsForAgent` — orchestrator gets the full superpowers allowlist
+2. `src/agents/index.ts` `applyClassification` — orchestrator alone gets `mode = 'primary'`
+3. `src/index.ts` post-file-tool nudge hook — fires only for the literal orchestrator session
+4. `src/index.ts` chat.system.transform hook — injects the orchestrator bridge prompt only for the literal orchestrator session
+
+Patch 0004 introduces a small helper `isOrchestratorAgent(name)` that returns `true` for any name starting with `orchestrator` (literal, dash-suffix variants like `orchestrator-beta`, no-separator variants like `orchestrator2`, etc.) and replaces all four equality checks with the helper.
+
+### Why a fallback orchestrator matters
+
+Anthropic API has 5-hour rolling rate limits per model. When a primary orchestrator running on (e.g.) `claude-opus-4-7` exhausts its quota, the entire session stalls until the cooldown clears. With patch 0004, you can register a second orchestrator (e.g. `orchestrator-beta` running on a vendor-diverse model like `gpt-5.4 + xhigh`) as a peer primary agent. Switching to it from the OpenCode agent picker resumes work immediately — the bridge prompt, MCPs, permissions, and superpowers allowlist all auto-inherit from the literal orchestrator.
+
+### Behavioral inheritance for `orchestrator-*` variants
+
+| Field | Source | How it flows to `orchestrator-beta` |
+|---|---|---|
+| Bridge prompt | Resolved at runtime from the literal orchestrator definition (`agentDefs.find(a => a.name === 'orchestrator')`) | Hook unchanged; `isOrchestratorAgent()` gate widened |
+| `mode = 'primary'` | `applyClassification` switch in `src/agents/index.ts` | Generalized via `isOrchestratorAgent()` |
+| Superpowers allowlist | `getAllowedSuperpowersSkillsForAgent` policy | Generalized via `isOrchestratorAgent()` |
+| `permission` (`question: allow`, `council_session: deny`, `skill: { ... }`) | `applyDefaultPermissions` runs on every custom agent (existing path) | No change; auto-inherited |
+| `mcps` | OMO Slim resolves from the agent's preset entry; copying `["*", "!context7"]` from `orchestrator` to `orchestrator-beta` mirrors behavior | User-supplied in `oh-my-opencode-slim.jsonc` |
+| `model`, `variant` | User-supplied in `oh-my-opencode-slim.jsonc` | The whole point — this is what you change |
+
+Adding a new orchestrator-shaped agent is therefore purely a configuration change: a single jsonc entry with `model` + `mcps`, and (optionally) an `agents/<name>.md` markdown for OpenCode-native fields like `description` or `displayName`.

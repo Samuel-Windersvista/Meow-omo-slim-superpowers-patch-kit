@@ -1,8 +1,8 @@
 import type { Plugin } from '@opencode-ai/plugin';
 import { createAgents, getAgentConfigs, getDisabledAgents } from './agents';
 import { buildOrchestratorPrompt } from './agents/orchestrator';
+import { isOrchestratorAgent } from './cli/superpowers-policy';
 import { loadPluginConfig, type MultiplexerConfig } from './config';
-import { collapseSystemInPlace } from './utils/system-collapse';
 import { buildAgentMcpPermissionRules } from './config/agent-mcps';
 import { CouncilManager } from './council';
 import {
@@ -32,6 +32,7 @@ import {
   createPresetManager,
   createWebfetchTool,
 } from './tools';
+import { collapseSystemInPlace } from './utils/system-collapse';
 import { resolveRuntimeAgentName, rewriteDisplayNameMentions } from './utils';
 import { initLogger, log } from './utils/logger';
 import { SubagentDepthTracker } from './utils/subagent-depth';
@@ -222,8 +223,10 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
 
     // Initialize post-file-tool nudge hook
     postFileToolNudgeHook = createPostFileToolNudgeHook({
-      shouldInject: (sessionID) =>
-        sessionAgentMap.get(sessionID) === 'orchestrator',
+      shouldInject: (sessionID) => {
+        const agentName = sessionAgentMap.get(sessionID);
+        return !!agentName && isOrchestratorAgent(agentName);
+      },
     });
 
     chatHeadersHook = createChatHeadersHook(ctx);
@@ -669,7 +672,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       const agentName = input.sessionID
         ? sessionAgentMap.get(input.sessionID)
         : undefined;
-      if (agentName === 'orchestrator') {
+      if (agentName && isOrchestratorAgent(agentName)) {
         const alreadyInjected = output.system.some(
           (s) =>
             typeof s === 'string' &&
@@ -678,11 +681,12 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         );
         if (!alreadyInjected) {
           // Prepend the orchestrator prompt to the system array. Use the
-          // resolved prompt from the orchestrator agent definition (which
-          // includes any custom replacement or append from orchestrator.md
-          // / orchestrator_append.md) Fall back to
-          // buildOrchestratorPrompt only if the resolved prompt is
-          // missing.
+          // resolved prompt from the *literal* orchestrator agent definition
+          // (which includes any custom replacement or append from
+          // orchestrator.md / orchestrator_append.md). Variant orchestrators
+          // ("orchestrator-beta", etc.) inherit the same prompt so they
+          // behave identically to the main orchestrator. Fall back to
+          // buildOrchestratorPrompt only if the resolved prompt is missing.
           const orchestratorDef = agentDefs.find(
             (a) => a.name === 'orchestrator',
           );
@@ -703,7 +707,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       );
 
       // Collapse to single system message for provider compatibility.
-      // Some providers (e.g. Qwen via VLLM/DashScope) reject multiple
+      // Some providers (e.g. Qwen3.5 via DashScope) reject multiple
       // system messages. Sub-hooks above may push additional entries; join
       // them back into one element so OpenCode emits a single system
       // message.

@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-05-05 — v1.2.0
+
+- Added **orchestrator prefix matching** (patch `0004-orchestrator-prefix-matching.patch`):
+  - New exported helper `isOrchestratorAgent(name)` in `src/cli/superpowers-policy.ts` returns `true` for any agent name starting with `orchestrator` (literal `orchestrator`, dash-suffix variants like `orchestrator-beta`, no-separator variants like `orchestrator2`).
+  - All four hardcoded `agentName === 'orchestrator'` string-equality sites in OMO Slim are generalized to use `isOrchestratorAgent()`:
+    - `src/cli/superpowers-policy.ts` `getAllowedSuperpowersSkillsForAgent` — orchestrator-shaped agents get the full superpowers allowlist
+    - `src/agents/index.ts` `applyClassification` — orchestrator-shaped agents get `mode = 'primary'` (visible in OpenCode's primary agent picker)
+    - `src/index.ts` post-file-tool nudge hook — fires for any orchestrator-shaped session
+    - `src/index.ts` chat.system.transform hook — injects the literal orchestrator's bridge prompt into every orchestrator-shaped session, so variants behave identically
+  - Use case: define a fallback primary orchestrator (e.g. `orchestrator-beta` on a different model) so users can switch agents from the OpenCode picker when their main orchestrator's model rate-limits, without re-running the entire 5-hour cooldown clock.
+  - Permissions, MCPs, and prompts auto-inherit from `applyDefaultPermissions` (custom-agent path) and the runtime hook respectively — no per-variant configuration required beyond `model` + (optional) `mcps`.
+  - 5 new tests in `src/cli/superpowers-policy.test.ts` covering literal/dash-suffix/no-separator-suffix matches and negative cases (mid-name `orchestrator` substrings do NOT match).
+- Updated `snapshots/oh-my-opencode-slim/src/cli/{superpowers-policy.ts,superpowers-policy.test.ts}`, `src/agents/index.ts` (NEW snapshot — was missing in v1.1.0), and `src/index.ts` to post-0004 state.
+- Updated `README.md`, `COMPATIBILITY.md`, `docs/architecture.md`, `docs/install.md`, `docs/verify.md` with patch-0004 install/verify guidance.
+- Patch 0004 is **recommended for all installations** (not opt-in like 0003): the change is purely a generalization of an existing string equality and does not alter behavior for the literal `orchestrator` agent. Skip only if you intentionally need orchestrator-shaped names (e.g., `orchestrator-something`) to NOT be treated as orchestrators.
+
 ## 2026-05-04
 
 - Added optional **best-of-N + fast-lane extension**:

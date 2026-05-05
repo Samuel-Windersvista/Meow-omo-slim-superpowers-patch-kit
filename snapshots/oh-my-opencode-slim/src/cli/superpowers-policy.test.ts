@@ -3,6 +3,7 @@ import {
   FALLBACK_SUPERPOWERS_SKILLS,
   buildSuperpowersSkillPermissions,
   getAllowedSuperpowersSkillsForAgent,
+  isOrchestratorAgent,
 } from './superpowers-policy';
 
 describe('superpowers policy', () => {
@@ -39,5 +40,41 @@ describe('superpowers policy', () => {
 
     expect(buildSuperpowersSkillPermissions('fixer', futureSkills)['future-superpowers-skill']).toBe('deny');
     expect(buildSuperpowersSkillPermissions('orchestrator', futureSkills)['future-superpowers-skill']).toBe('allow');
+  });
+
+  describe('isOrchestratorAgent()', () => {
+    it('matches the literal orchestrator', () => {
+      expect(isOrchestratorAgent('orchestrator')).toBe(true);
+    });
+
+    it('matches dash-suffix variants like orchestrator-beta', () => {
+      expect(isOrchestratorAgent('orchestrator-beta')).toBe(true);
+      expect(isOrchestratorAgent('orchestrator-alpha')).toBe(true);
+      expect(isOrchestratorAgent('orchestrator-fallback')).toBe(true);
+    });
+
+    it('matches no-separator prefix variants like orchestrator2', () => {
+      expect(isOrchestratorAgent('orchestrator2')).toBe(true);
+      expect(isOrchestratorAgent('orchestratorx')).toBe(true);
+    });
+
+    it('does not match unrelated agents that happen to contain "orchestrator" mid-name', () => {
+      expect(isOrchestratorAgent('fixer')).toBe(false);
+      expect(isOrchestratorAgent('oracle')).toBe(false);
+      expect(isOrchestratorAgent('my-orchestrator')).toBe(false);
+      expect(isOrchestratorAgent('preorchestrator')).toBe(false);
+    });
+  });
+
+  it('grants full superpowers allowlist to orchestrator-prefix variants', () => {
+    const permissionsBeta = buildSuperpowersSkillPermissions('orchestrator-beta', FALLBACK_SUPERPOWERS_SKILLS);
+    expect(permissionsBeta['brainstorming']).toBe('allow');
+    expect(permissionsBeta['writing-plans']).toBe('allow');
+    expect(permissionsBeta['subagent-driven-development']).toBe('allow');
+    expect(permissionsBeta['using-superpowers']).toBe('deny');
+
+    const permissionsX = buildSuperpowersSkillPermissions('orchestrator2', FALLBACK_SUPERPOWERS_SKILLS);
+    expect(permissionsX['brainstorming']).toBe('allow');
+    expect(permissionsX['writing-plans']).toBe('allow');
   });
 });

@@ -101,3 +101,25 @@ Only run these checks if you installed the `opencode-config/` example setup (pat
 - Trigger fan-out: `Run best-of-N on this task: <task spec>. Use 4 fixer variants and 4 oracle variants. max_redos=0.`
 - Expected: 4 candidates dispatched, hard gate filter, oracle reviews, winner cherry-picked, all `.worktrees/bestofn-*` cleaned, `.opencode/bestofn-state/` empty post-run
 - See `opencode-config/docs/plans/2026-05-04-best-of-n-with-judge-plan.md` Task 15 Step 4 for full post-condition checklist
+
+## Optional: orchestrator-prefix verification (requires patch 0004)
+
+Only run these checks if you applied patch 0004 and registered an `orchestrator-beta` (or other orchestrator-prefix variant) in your OMO Slim config.
+
+### Visibility checks
+
+- The variant orchestrator appears in the OpenCode agent picker as a switchable primary agent (not hidden, not subagent)
+- Switching to it does not crash or fall back to a default subagent prompt
+
+### Behavior parity probes
+
+Run the same probe with both `@orchestrator` and `@orchestrator-beta` (assuming you registered `orchestrator-beta`):
+
+- `list the available worker lanes in this setup` — both should respond with the full lane map (proves the bridge prompt is injected for the variant)
+- `which superpowers skills can you invoke?` — both should list the full superpowers allowlist (brainstorming, writing-plans, subagent-driven-development, etc.) — proves `isOrchestratorAgent()` widened the policy correctly
+- `dispatch task(subagent_type="explorer", ...)` — both should be allowed to delegate (proves MCP `["*", "!context7"]` and permission inheritance work)
+
+### Negative probes
+
+- An agent whose name does NOT start with `orchestrator` (e.g. your `laborer`) should NOT get mode='primary' — confirm via the agent picker that `laborer` only appears as a subagent
+- A new agent named `my-orchestrator` (mid-name `orchestrator`) should NOT match — patch 0004 uses prefix matching only

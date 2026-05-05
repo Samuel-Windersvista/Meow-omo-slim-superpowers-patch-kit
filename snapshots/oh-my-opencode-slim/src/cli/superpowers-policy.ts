@@ -79,6 +79,19 @@ export function resolveBaseAgentName(agentName: string): string {
   return agentName;
 }
 
+/**
+ * Detect whether an agent name should be treated as an orchestrator.
+ * Matches the literal "orchestrator" plus any prefix-extended name like
+ * "orchestrator-beta", "orchestrator2", "orchestratorx", etc. Used to make
+ * orchestrator-shaped variant agents (intended as fallback primary agents
+ * when the main orchestrator's model rate-limits) inherit orchestrator's
+ * runtime behaviour: bridge-prompt injection, post-file-tool nudge,
+ * mode='primary' classification, and full superpowers skill allowance.
+ */
+export function isOrchestratorAgent(agentName: string): boolean {
+  return agentName.startsWith('orchestrator');
+}
+
 let cachedSuperpowersSkills: string[] | null = null;
 
 function getOpencodeConfigDir(): string {
@@ -124,13 +137,17 @@ export function getAllowedSuperpowersSkillsForAgent(
   agentName: string,
   superpowersSkills: readonly string[] = discoverSuperpowersSkillNames(),
 ): Set<string> {
+  // Orchestrator-shaped agents (literal "orchestrator", "orchestrator-beta",
+  // "orchestrator2", etc.) get the full superpowers allowlist so a fallback
+  // orchestrator can do real orchestration work when the main one is
+  // rate-limited.
+  if (isOrchestratorAgent(agentName)) {
+    return new Set(superpowersSkills.filter((name) => name !== 'using-superpowers'));
+  }
+
   // Resolve variant suffix names (e.g., "fixer-alpha" -> "fixer") so they
   // inherit the base agent's policy without per-variant entries.
   const resolvedName = resolveBaseAgentName(agentName);
-
-  if (resolvedName === 'orchestrator') {
-    return new Set(superpowersSkills.filter((name) => name !== 'using-superpowers'));
-  }
 
   const explicit = new Set(AGENT_ALLOWED_SUPERPOWERS[resolvedName] ?? []);
   const allowed = new Set<string>();

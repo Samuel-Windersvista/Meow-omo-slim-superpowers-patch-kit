@@ -30,7 +30,7 @@ Nearby newer versions will likely still work, but if patch application fails or 
 
 ## What this kit patches
 
-This patch kit changes OMO Slim in three ways:
+This patch kit changes OMO Slim in four ways:
 
 1. **Superpowers-only skill gating** (patch 0001)
    - OMO Slim only selectively restricts `superpowers` skills
@@ -48,6 +48,12 @@ This patch kit changes OMO Slim in three ways:
    - Variants inherit the base agent's superpowers permission policy without needing per-variant entries
    - Adds explicit policy entries for fast-lane utility agents (`scout`, `validator`, `gist`, `wildcard`)
    - Required if you adopt the optional `opencode-config/` example setup (best-of-N + fast-lane agents)
+
+4. **Orchestrator prefix matching** (patch 0004, v1.2.0)
+   - Generalizes the four hardcoded `agentName === 'orchestrator'` checks in OMO Slim to a `isOrchestratorAgent()` helper that matches any name starting with `orchestrator` (e.g. `orchestrator`, `orchestrator-beta`, `orchestrator2`)
+   - Lets you define fallback primary orchestrators (different model, same behavior) so the OpenCode agent picker shows multiple switchable orchestrators
+   - Common use case: avoid 5-hour rate-limit downtime by switching to `orchestrator-beta` (running on a vendor-diverse model) when your main orchestrator's quota is exhausted
+   - Recommended for all installations; skip only if you intentionally need orchestrator-shaped names to NOT be treated as orchestrators
 
 It also includes prompt bridge files so OMO Slim agents understand how to behave inside a Superpowers-managed workflow.
 
@@ -76,7 +82,7 @@ This is opt-in. The base patch kit (patches 0001 + 0002 + bridges + base agent t
 
 ## Repository layout
 
-- `patches/` — patch files to apply against an upstream local OMO Slim checkout (3 patches: skill gating, MCP gating, best-of-N name resolution)
+- `patches/` — patch files to apply against an upstream local OMO Slim checkout (4 patches: skill gating, MCP gating, best-of-N name resolution, orchestrator prefix matching)
 - `snapshots/` — validated modified source files for manual comparison
 - `config-templates/` — template configs based on the maintainer profile
 - `prompt-bridges/` — per-agent append prompts for Superpowers-aware behavior
@@ -106,6 +112,10 @@ If you installed the optional `opencode-config/` setup, also verify:
 - 4 utility agents (`scout`, `validator`, `gist`, `wildcard`) are dispatchable
 - Variant agents inherit base superpowers (e.g., `@fixer-alpha` can use `verification-before-completion`)
 - The `best-of-n-with-judge` skill is loadable
+
+If you applied patch 0004 and added an `orchestrator-beta` (or other orchestrator-prefix variant) entry to your OMO Slim config, also verify:
+- The variant orchestrator is visible in the OpenCode agent picker as a primary mode
+- Switching to it preserves all bridge prompts, MCPs, and superpowers skill access (only the underlying model changes)
 
 ## Rollback
 
