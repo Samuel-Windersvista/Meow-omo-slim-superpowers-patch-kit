@@ -6,6 +6,7 @@ import {
   getTaskFallbackShadowName,
 } from './agents';
 import { buildOrchestratorPrompt } from './agents/orchestrator';
+import { decideTaskPreroute } from './agents/preroute-decision';
 import { isOrchestratorAgent } from './cli/superpowers-policy';
 import { loadPluginConfig, type MultiplexerConfig } from './config';
 import { buildAgentMcpPermissionRules } from './config/agent-mcps';
@@ -22,7 +23,6 @@ import {
   createPostFileToolNudgeHook,
   createTodoContinuationHook,
   ForegroundFallbackManager,
-  isRateLimitError,
 } from './hooks';
 import { processImageAttachments } from './hooks/image-hook';
 import { createInterviewManager } from './interview';
@@ -39,13 +39,11 @@ import {
   createPresetManager,
   createWebfetchTool,
 } from './tools';
-import {
-  createInternalAgentTextPart,
-  resolveRuntimeAgentName,
-  rewriteDisplayNameMentions,
-} from './utils';
+import { resolveRuntimeAgentName, rewriteDisplayNameMentions } from './utils';
 import { initLogger, log } from './utils/logger';
 import { mergeAgentConfig } from './utils/merge-agent-config';
+import { isPivotedRootAgent } from './utils/orchestrator-identity';
+import { extractSessionAgent } from './utils/session';
 import { SubagentDepthTracker } from './utils/subagent-depth';
 import { collapseSystemInPlace } from './utils/system-collapse';
 
@@ -86,15 +84,13 @@ function getAnthropicTaskFallbackRoute(
 ):
   | {
       shadowAgentName: string;
-      backupModel: string;
     }
   | undefined {
   if (!models || models.length < 2) return undefined;
-  const [primary, backup] = models;
+  const [primary] = models;
   if (!isAnthropicPrimaryModel(primary?.id)) return undefined;
   return {
     shadowAgentName: getTaskFallbackShadowName(agentName),
-    backupModel: backup.id,
   };
 }
 
@@ -146,19 +142,10 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
   >;
   let sessionAgentMap: Map<string, string>;
   let sessionRootMap: Map<string, string>;
-  let sessionCurrentModelMap: Map<string, string>;
-  let anthropicDegradedRoots: Set<string>;
-  // Manually-forced degraded flag from /anthropic-degraded on. Survives the
-  // per-turn chat.message clear that anthropicDegradedRoots is subject to,
-  // so the debug command can reliably exercise the pre-route path without
-  // having to actually exhaust an Anthropic quota. Cleared only via
-  // /anthropic-degraded off or session.deleted.
-  let anthropicForcedRoots: Set<string>;
   let anthropicTaskFallbacks!: Record<
     string,
     {
       shadowAgentName: string;
-      backupModel: string;
     }
   >;
   let postFileToolNudgeHook: ReturnType<typeof createPostFileToolNudgeHook>;
@@ -197,7 +184,6 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       string,
       {
         shadowAgentName: string;
-        backupModel: string;
       }
     >;
     // Record anthropic-primary agents that have an explicit backup model in
@@ -264,9 +250,6 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
 
     depthTracker = new SubagentDepthTracker();
     sessionRootMap = new Map<string, string>();
-    sessionCurrentModelMap = new Map<string, string>();
-    anthropicDegradedRoots = new Set<string>();
-    anthropicForcedRoots = new Set<string>();
 
     // Initialize council tools (only when council is configured)
     councilTools = config.council
@@ -326,6 +309,10 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       runtimeChains,
       config.fallback?.enabled !== false &&
         Object.keys(runtimeChains).length > 0,
+      undefined,
+      (sessionID, agentName) => {
+        sessionAgentMap.set(sessionID, agentName);
+      },
     );
 
     // Initialize todo-continuation hook (opt-in auto-continue for
@@ -360,35 +347,6 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     return sessionRootMap.get(sessionID) ?? sessionID;
   };
 
-  const markRootAnthropicDegraded = (
-    sessionID: string,
-    source: string,
-  ): void => {
-    const model = sessionCurrentModelMap.get(sessionID);
-    if (!isAnthropicPrimaryModel(model)) return;
-    const rootSessionID = getRootSessionId(sessionID);
-    if (!anthropicDegradedRoots.has(rootSessionID)) {
-      anthropicDegradedRoots.add(rootSessionID);
-      log('[child-preroute] root anthropic degraded', {
-        source,
-        sessionID,
-        rootSessionID,
-        model,
-      });
-    }
-  };
-
-  const clearRootAnthropicDegraded = (
-    rootSessionID: string,
-    source: string,
-  ): void => {
-    if (anthropicDegradedRoots.delete(rootSessionID)) {
-      log('[child-preroute] root anthropic restored', {
-        source,
-        rootSessionID,
-      });
-    }
-  };
 
   // ── Health check: validate registrations ────────────────────────────
   const agentCount = Object.keys(agents).length;
@@ -641,20 +599,6 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         };
       }
 
-      if (!configCommand?.['anthropic-degraded']) {
-        if (!opencodeConfig.command) {
-          opencodeConfig.command = {};
-        }
-        (opencodeConfig.command as Record<string, unknown>)[
-          'anthropic-degraded'
-        ] = {
-          template:
-            'Inspect or override the current root-session Anthropic degraded flag: /anthropic-degraded on|off|status',
-          description:
-            'Debug command for task-child startup pre-route when Anthropic is unhealthy',
-        };
-      }
-
       interviewManager.registerCommand(opencodeConfig);
       presetManager.registerCommand(opencodeConfig);
     },
@@ -683,52 +627,9 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         }
       }
 
-      if (event.type === 'message.updated') {
-        const info = event.properties?.info as
-          | {
-              sessionID?: string;
-              providerID?: string;
-              modelID?: string;
-              error?: unknown;
-            }
-          | undefined;
-        if (
-          info?.sessionID &&
-          typeof info.providerID === 'string' &&
-          typeof info.modelID === 'string'
-        ) {
-          sessionCurrentModelMap.set(
-            info.sessionID,
-            `${info.providerID}/${info.modelID}`,
-          );
-        }
-        if (info?.sessionID && info.error && isRateLimitError(info.error)) {
-          markRootAnthropicDegraded(info.sessionID, 'message.updated');
-        }
-      }
-
-      if (event.type === 'session.error') {
-        const props = event.properties as
-          | { sessionID?: string; error?: unknown }
-          | undefined;
-        if (props?.sessionID && props.error && isRateLimitError(props.error)) {
-          markRootAnthropicDegraded(props.sessionID, 'session.error');
-        }
-      }
-
-      if (
-        event.type === 'session.status' &&
-        event.properties?.sessionID &&
-        event.properties?.status?.type === 'retry'
-      ) {
-        markRootAnthropicDegraded(
-          event.properties.sessionID,
-          'session.status.retry',
-        );
-      }
-
       // Runtime model fallback for foreground agents (rate-limit detection)
       await foregroundFallback.handleEvent(input.event);
+
       // Todo-continuation: auto-continue orchestrator on incomplete todos
       await todoContinuationHook.handleEvent(input);
 
@@ -772,14 +673,8 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
           depthTracker.cleanup(sessionID);
         }
         if (sessionID) {
-          const rootSessionID = getRootSessionId(sessionID);
           sessionAgentMap.delete(sessionID);
-          sessionCurrentModelMap.delete(sessionID);
           sessionRootMap.delete(sessionID);
-          if (rootSessionID === sessionID) {
-            anthropicDegradedRoots.delete(rootSessionID);
-            anthropicForcedRoots.delete(rootSessionID);
-          }
         }
       }
     },
@@ -807,98 +702,100 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       if (typeof args?.subagent_type !== 'string') {
         return;
       }
-      // Resumed tasks already have an existing child session/model; only
-      // fresh task spawns are pre-routed.
-      if (typeof args.task_id === 'string' && args.task_id.length > 0) {
-        return;
-      }
-
       const rootSessionID = getRootSessionId(input.sessionID);
-      const isAuto = anthropicDegradedRoots.has(rootSessionID);
-      const isForced = anthropicForcedRoots.has(rootSessionID);
-      if (!isAuto && !isForced) {
-        log('[child-preroute] skip: root not degraded', {
-          rootSessionID,
-          subagentType: args.subagent_type,
-        });
-        return;
-      }
-
-      const route = anthropicTaskFallbacks[args.subagent_type];
-      if (!route) {
-        log('[child-preroute] skip: no anthropic→backup route for agent', {
-          rootSessionID,
-          subagentType: args.subagent_type,
-          source: isForced ? 'forced' : 'auto',
-        });
-        return;
-      }
-
+      const rootAgent = sessionAgentMap.get(rootSessionID);
       const originalSubagentType = args.subagent_type;
-      args.subagent_type = route.shadowAgentName;
+      const taskId =
+        typeof args.task_id === 'string' ? args.task_id : undefined;
+      const isPivotedRoot = isPivotedRootAgent(rootAgent);
+
+      if (taskId) {
+        log('[child-preroute][diag] evaluate task resume/fresh', {
+          rootSessionID,
+          rootAgent,
+          isPivotedRoot,
+          subagentType: originalSubagentType,
+          taskId,
+        });
+      }
+
+      const verdict = await decideTaskPreroute({
+        rootAgent,
+        subagentType: originalSubagentType,
+        taskId,
+        lookupSessionAgent: async (id) => {
+          try {
+            const resumedAgentName = await extractSessionAgent(ctx.client, id);
+            log('[child-preroute][diag] resumed session lookup', {
+              rootSessionID,
+              requestedTaskId: id,
+              source: 'session.messages',
+              resumedAgentName,
+            });
+            return resumedAgentName;
+          } catch (err) {
+            log('[child-preroute][diag] resumed session lookup failed', {
+              rootSessionID,
+              requestedTaskId: id,
+              source: 'session.messages',
+              error: err instanceof Error ? err.message : String(err),
+            });
+            return undefined;
+          }
+        },
+        anthropicTaskFallbacks,
+      });
+
+      if (taskId) {
+        log('[child-preroute][diag] preroute verdict', {
+          rootSessionID,
+          rootAgent,
+          isPivotedRoot,
+          subagentType: originalSubagentType,
+          taskId,
+          action: verdict.action,
+          errorMessage:
+            verdict.action === 'block' ? verdict.errorMessage : undefined,
+          newSubagentType:
+            verdict.action === 'rewrite' ? verdict.newSubagentType : undefined,
+        });
+      }
+
+      if (verdict.action === 'passthrough') {
+        log('[child-preroute] passthrough task-owned child', {
+          rootSessionID,
+          rootAgent,
+          subagentType: originalSubagentType,
+          source: isPivotedRoot ? 'pivoted' : 'identity',
+        });
+        return;
+      }
+
+      if (verdict.action === 'block') {
+        log(
+          '[child-preroute] blocked resumed task on anthropic-primary child',
+          {
+            rootSessionID,
+            taskId: args.task_id,
+            errorMessage: verdict.errorMessage,
+          },
+        );
+        throw new Error(verdict.errorMessage);
+      }
+
+      args.subagent_type = verdict.newSubagentType;
       log('[child-preroute] rerouted task-owned child to backup shadow agent', {
         rootSessionID,
         callerSessionID: input.sessionID,
         subagentType: originalSubagentType,
-        shadowAgentType: route.shadowAgentName,
-        model: route.backupModel,
-        source: isForced ? 'forced' : 'auto',
+        shadowAgentType: verdict.newSubagentType,
+        source: 'pivoted',
       });
     },
 
     // Direct interception of /auto-continue command — bypasses LLM
     // round-trip
     'command.execute.before': async (input, output) => {
-      if (input.command === 'anthropic-degraded') {
-        const parts = output.parts as Array<{ type: string; text?: string }>;
-        parts.length = 0;
-        const rootSessionID = getRootSessionId(input.sessionID);
-        const arg = input.arguments.trim().toLowerCase();
-        if (arg === 'on') {
-          anthropicForcedRoots.add(rootSessionID);
-          log('[child-preroute] root anthropic forced ON (manual)', {
-            rootSessionID,
-          });
-          parts.push(
-            createInternalAgentTextPart(
-              `Anthropic degraded flag forced ON for root session ${rootSessionID}. Fresh task-owned child sessions using Anthropic-primary lanes will be pre-routed to their backup model.`,
-            ),
-          );
-          return;
-        }
-        if (arg === 'off') {
-          const hadForced = anthropicForcedRoots.delete(rootSessionID);
-          const hadAuto = anthropicDegradedRoots.delete(rootSessionID);
-          log('[child-preroute] root anthropic forced OFF (manual)', {
-            rootSessionID,
-            clearedForced: hadForced,
-            clearedAuto: hadAuto,
-          });
-          parts.push(
-            createInternalAgentTextPart(
-              `Anthropic degraded flag forced OFF for root session ${rootSessionID}. Fresh task-owned child sessions will use their normal primary model again.`,
-            ),
-          );
-          return;
-        }
-        const forcedOn = anthropicForcedRoots.has(rootSessionID);
-        const autoOn = anthropicDegradedRoots.has(rootSessionID);
-        const state =
-          forcedOn && autoOn
-            ? 'ON (forced+auto)'
-            : forcedOn
-              ? 'ON (forced)'
-              : autoOn
-                ? 'ON (auto)'
-                : 'OFF';
-        parts.length = 0;
-        parts.push(
-          createInternalAgentTextPart(
-            `Anthropic degraded flag for root session ${rootSessionID}: ${state}. Use /anthropic-degraded on|off|status.`,
-          ),
-        );
-        return;
-      }
 
       await todoContinuationHook.handleCommandExecuteBefore(
         input as {
@@ -952,23 +849,9 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       if (!sessionRootMap.has(input.sessionID)) {
         sessionRootMap.set(input.sessionID, input.sessionID);
       }
-      const rootSessionID = getRootSessionId(input.sessionID);
 
       if (agent) {
         sessionAgentMap.set(input.sessionID, agent);
-      }
-
-      // Per design: each new root/main prompt clears the degraded flag and
-      // gives Anthropic one fresh chance. If the prompt falls back again,
-      // runtime event bookkeeping flips the flag back on.
-      if (rootSessionID === input.sessionID && agent) {
-        const route = anthropicTaskFallbacks[agent];
-        if (route) {
-          clearRootAnthropicDegraded(
-            rootSessionID,
-            `root chat.message ${agent}`,
-          );
-        }
       }
 
       todoContinuationHook.handleChatMessage({
@@ -1050,6 +933,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
           }>;
         }>;
       };
+
 
       for (const message of typedOutput.messages) {
         if (message.info.role !== 'user') {

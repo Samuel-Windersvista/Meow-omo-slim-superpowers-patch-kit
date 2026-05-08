@@ -1,121 +1,66 @@
-> **Note**: This file is a snapshot of the maintainer's live `~/.config/opencode/README.md`, included here as a reference example for the optional best-of-N + fast-lane setup. It documents the maintainer's specific config (provider names, paths) and is **not an installation target**. Use it as a reference for what a working setup looks like, then adapt the model assignments to your own provider catalog.
+> **Note**: This file is a snapshot-style reference for the optional best-of-N + fast-lane setup. It documents the maintainer's specific config and is **not an installation target**. Use it as a reference, then adapt model assignments to your provider catalog.
 >
-> Installation steps for the best-of-N + fast-lane setup are in [`../docs/install.md`](../docs/install.md) under "Optional: install the best-of-N + fast-lane example setup".
+> Installation steps are in [`../docs/install.md`](../docs/install.md).
 
 ---
 
 # opencode user config
 
-Personal opencode configuration: plugins, custom agents, skills, prompts.
+Personal OpenCode configuration: plugins, custom agents, skills, prompts.
 
 ## Layout
 
-```
+```text
 .config/opencode/
-├── opencode.json                    # core opencode config (plugins, providers, MCPs)
-├── oh-my-opencode-slim.jsonc        # omo-slim plugin config (per-agent presets)
-├── agents/                          # user-level subagent definitions (markdown)
-├── prompts/                         # shared prompt fragments referenced by agents
-├── skills/                          # custom skills (best-of-n-with-judge, ...)
-├── superpowers/                     # local checkout of obra/superpowers
-├── oh-my-opencode-slim/             # omo-slim bridge layer (superpowers integration)
-├── oh-my-opencode-slim-local/       # local fork of omo-slim plugin source
-├── plugins/                         # custom plugin scripts
-├── tools/                           # auxiliary CLI helpers
-└── docs/plans/                      # design docs + implementation plans
+├── opencode.json
+├── oh-my-opencode-slim.jsonc
+├── agents/
+├── prompts/
+├── skills/
+├── superpowers/
+├── oh-my-opencode-slim/
+├── oh-my-opencode-slim-local/
+├── plugins/
+├── tools/
+└── docs/plans/
 ```
 
 ## Best-of-N with Judge
 
-This config installs a `best-of-n-with-judge` skill that adds parallel
-candidate generation + blind oracle review + winner selection on top of
-the standard superpowers + omo-slim flow.
+This config installs `best-of-n-with-judge` for parallel candidate generation, blind oracle review, and winner selection on top of the standard Superpowers + OMO Slim flow.
 
-**Trigger phrases:** "best of N", "fan out", "tournament", "parallel
-candidates".
+Variant agents:
 
-**Variant agents** are pre-registered in `agents/`:
-- `fixer-{alpha,beta,gamma}` — code candidate generators (frontier-tier diversity)
-- `fixer-delta` — deliberate naive-challenger lane (gpt-5.4-mini) for simple-baseline diversity
-- `oracle-{alpha,beta,gamma,delta}` — blind reviewers (4 different models)
+- `fixer-{alpha,beta,gamma}` — code candidate generators
+- `fixer-delta` — deliberate naive-challenger lane
+- `oracle-{alpha,beta,gamma,delta}` — blind reviewers
 - `designer-{alpha,beta,gamma,delta}` — UI candidate generators
-- `explorer-{alpha,beta}` — parallel reconnaissance (gpt-5.5 / sonnet, both hot-path competent)
+- `explorer-{alpha,beta}` — parallel reconnaissance
 - `librarian-{alpha,beta}` — parallel docs research
 
-**Fast-lane utility agents** (haiku/mini-tier, latency-optimized; not in best-of-N pool):
-- `@scout` — narrow file/code lookup ("which file contains X")
-- `@validator` — format/syntax check (JSON/YAML/regex)
+Fast-lane utility agents:
+
+- `@scout` — narrow file/code lookup
+- `@validator` — format/syntax check
 - `@gist` — 3-line file summarizer
-- `@wildcard` — divergent ideation contributor for brainstorming Phase 4 only
+- `@wildcard` — divergent ideation contributor for brainstorming only
 
-**Worktree convention:** candidates land at
-`<main-repo>/.worktrees/bestofn-<slug>-<ts>/<variant>/`. Each candidate
-gets its own branch `bestofn/<slug>-<ts>/<variant>`. Cleanup is
-unconditional. State persists at
-`<main-repo>/.opencode/bestofn-state/<task-id>.json` until the fan-out
-completes successfully (then deleted).
+## Root orchestrators
 
-**Manual cleanup escape hatch** (if a fan-out is interrupted):
+- `orchestrator` is Anthropic-primary and may automatically pivot on retry.
+- `orchestrator-beta` is the only automatic pivot target and the only fallback-enforcing root identity for Claude child tasks.
+- `orchestrator-delta` is a manual GPT root. It inherits root operator posture and reserved-skill access, but it does not force child fallback.
 
-```bash
-# Discovery
-git worktree list | grep bestofn-
-git for-each-ref --format='%(refname:short)' refs/heads/bestofn/
+Reserved orchestrator-only skills are `best-of-n-with-judge` and `update-memory`. Only `orchestrator`, `orchestrator-beta`, and `orchestrator-delta` may invoke them.
 
-# Forced cleanup
-for w in $(git worktree list --porcelain | grep -A1 'bestofn-' | grep '^worktree ' | cut -d' ' -f2); do
-  git worktree remove --force "$w"
-done
-for b in $(git for-each-ref --format='%(refname:short)' refs/heads/bestofn/); do
-  git branch -D "$b"
-done
-git worktree prune
-rm -rf .worktrees/bestofn-* .opencode/bestofn-state/
-```
+## Worktree convention
 
-**Spec & plan:**
-- Design: `docs/plans/2026-05-04-best-of-n-with-judge-design.md`
-- Plan: `docs/plans/2026-05-04-best-of-n-with-judge-plan.md`
+Candidates land at `<main-repo>/.worktrees/bestofn-<slug>-<ts>/<variant>/`. Each candidate gets its own branch `bestofn/<slug>-<ts>/<variant>`. Cleanup is unconditional. State persists at `<main-repo>/.opencode/bestofn-state/<task-id>.json` until fan-out completes successfully, then is deleted.
 
-**Variant + utility model assignments** live centrally in
-`oh-my-opencode-slim.jsonc` under `presets.superpowers-bridge`. Each
-variant + utility agent name (e.g. `fixer-alpha`, `oracle-gamma`,
-`scout`, `wildcard`) has one entry specifying `model`, optional
-`variant` (reasoning-effort tag), optional `mcps`, and an
-`orchestratorPrompt` teaching the orchestrator when to dispatch it.
-Edit there to re-tune any agent's model — one file, one source of
-truth, same mechanism as the existing `laborer` agent.
+## Model assignments
 
-The variant md files in `agents/` carry only opencode-native behavioral
-contract fields (`permission`, `hidden`, `mode`, `temperature`,
-`description`, `prompt` reference). omo-slim does not manage these
-fields, so they remain fully under markdown control.
+Variant and utility model assignments live centrally in `oh-my-opencode-slim.jsonc` under `presets.superpowers-bridge`. Each entry specifies `model`, optional `variant`, optional `mcps`, and an `orchestratorPrompt` teaching the controller when to dispatch it.
 
-`opencode.json` `agent` block contains only `explore`/`general` disable
-entries — no per-variant overrides (which would shallow-replace
-omo-slim's synthesized permissions and lose default `skill`/`question`
-scaffolding).
+The markdown files in `agents/` carry OpenCode-native behavioral fields (`permission`, `hidden`, `mode`, `temperature`, `description`, `prompt`). OMO Slim does not manage these fields.
 
-### Skills
-
-- **Superpowers skills**: per-agent allowlist managed by `superpowers-policy.ts`.
-- **OMO custom + recommended skills** (`codemap`, `simplify`, `agent-browser`): per-agent allowlist managed by `custom-skills.ts` / `skills.ts`.
-- **Reserved orchestrator-only skills**: `best-of-n-with-judge`, `update-memory`. Only `orchestrator` and `orchestrator-beta` may invoke these. The list is managed in `orchestrator-only-skills.ts`.
-- **Other skills**: governed by tier policy in `agent-tier-policy.ts`.
-  - Tier 1/2 (`orchestrator*`, `fixer*`, `designer*`, `laborer`) default to `* allow`.
-  - Tier 3 (`oracle*`, `explorer*`, `librarian*`, `observer`, `council`, `councillor`, `scout`, `validator`, `gist`, `wildcard`) default to `* deny`.
-
-## How variants work without modifying omo-slim's discovery mechanism
-
-Each variant agent is a **user-level opencode markdown agent**
-(`agents/<name>.md`). opencode auto-loads these alongside plugin-provided
-agents at session start. They reference shared base prompts via
-`prompt: "{file:../prompts/<base>-base.md}"` so all four variants of one
-agent type share methodology, differing only in model. The bridge append
-`oh-my-opencode-slim/superpowers-bridge/oracle_append.md` was patched to
-teach oracle the multi-candidate verdict format.
-
-Patch 0003 modifies omo-slim source code at
-`oh-my-opencode-slim-local/src/cli/*.ts` to add suffix-stripping policy
-resolution. On omo-slim upgrade, manually re-apply patch 0003 (or use
-`git apply`) and rebuild via `bun run build`.
+`opencode.json` `agent` block should not carry per-variant overrides, because those would shallow-replace OMO Slim's synthesized permissions.

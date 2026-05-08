@@ -1571,7 +1571,6 @@ Expected:
 In an OpenCode session:
 
 ```
-/anthropic-degraded off    # if needed for fresh state
 @oracle hello, please run 'gh --version' via bash
 ```
 

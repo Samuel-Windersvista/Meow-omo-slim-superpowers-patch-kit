@@ -1,5 +1,43 @@
 # Changelog
 
+## 2026-05-08 — v1.6.0
+
+### Added
+- Publication patch `0007-final-orchestrator-pivot-cleanup.patch` for the final verified orchestrator pivot behavior.
+- `orchestrator-delta` in the public config template as a manual GPT root without fallback-enforcement semantics.
+- Snapshot coverage for final pivot source files, tests, `package.json`, and clean-build scripts.
+- Final design and plan docs for the beta/delta pivot cleanup.
+
+### Changed
+- Automatic retry pivot is exactly `orchestrator` -> `orchestrator-beta` on `gauge-forge-openai/gpt-5.4`.
+- Fresh child task pre-route depends only on the current root identity being `orchestrator-beta`.
+- Reserved orchestrator-only skills now allow `orchestrator`, `orchestrator-beta`, and `orchestrator-delta`.
+- `bun run build` now runs `clean:dist` first so stale deleted `dist/` files do not survive rebuilds.
+
+### Removed
+- Removed forced degraded override and debug retry probe surfaces from final public behavior.
+- Removed stale public guidance docs for the abandoned debug-root probe.
+
+## 2026-05-07 — v1.5.0
+
+### Added
+- `src/utils/orchestrator-identity.ts` for root identity constants and helpers.
+- `ForegroundFallbackManager.pivotOrchestrator()` for one-shot `orchestrator` -> `orchestrator-beta` replay.
+- Resumed `task` blocking when beta pivot mode sees a `task_id` for an Anthropic-primary child.
+
+### Changed
+- Task pre-route consults the current root agent name instead of a separate degraded flag.
+
+### Removed
+- Removed the separate degraded root set and auto-clear behavior.
+
+### Fixed
+- Root auto-pivot is one-way per session; returning to `orchestrator` is manual.
+- Child pre-route now consults root identity, avoiding the previous stale-flag race.
+
+### Internal
+- Superseded by final public docs in v1.6.0.
+
 ## 2026-05-05 — v1.4.0
 
 ### Added

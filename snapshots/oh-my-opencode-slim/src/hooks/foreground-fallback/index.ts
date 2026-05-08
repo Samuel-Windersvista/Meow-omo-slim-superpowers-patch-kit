@@ -17,57 +17,73 @@
 import type { PluginInput } from '@opencode-ai/plugin';
 import { log } from '../../utils/logger';
 import {
+  ANTHROPIC_PRIMARY_ORCHESTRATOR,
+  isAnthropicPrimaryOrchestrator,
+  PIVOT_TARGET_MODEL,
+  PIVOT_TARGET_ORCHESTRATOR,
+} from '../../utils/orchestrator-identity';
+import {
   type CooldownStore,
   createCooldownStore,
   parseAnthropicCooldown,
 } from './cooldowns';
 
 type OpencodeClient = PluginInput['client'];
+type SessionAgentChangeHandler = (sessionID: string, agentName: string) => void;
 
 // ---------------------------------------------------------------------------
-// Rate-limit detection
+// Retryable-failure detection (behavior-based, no message regex)
 // ---------------------------------------------------------------------------
 
-const RATE_LIMIT_PATTERNS = [
-  /\b429\b/,
-  /rate.?limit/i,
-  /too many requests/i,
-  /quota.?exceeded/i,
-  /usage.?exceeded/i,
-  /usage limit/i,
-  /overloaded/i,
-  /resource.?exhausted/i,
-  /insufficient.?quota/i,
-  /high concurrency/i,
-  /reduce concurrency/i,
-];
-
-export function isRateLimitError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false;
-  const err = error as {
+type RetryableApiError = {
+  name?: string;
+  data?: {
+    isRetryable?: boolean;
+    responseHeaders?: Record<string, string>;
+    statusCode?: number;
     message?: string;
-    data?: { statusCode?: number; message?: string; responseBody?: string };
+    responseBody?: string;
   };
-  const text = [
-    err.message ?? '',
-    String(err.data?.statusCode ?? ''),
-    err.data?.message ?? '',
-    err.data?.responseBody ?? '',
-  ].join(' ');
-  return RATE_LIMIT_PATTERNS.some((p) => p.test(text));
+  error?: unknown;
+};
+
+/**
+ * Normalize plugin-visible errors.
+ *
+ * OpenCode exposes structured API errors on assistant messages and
+ * session.error events. Some layers wrap the real payload as
+ * `{ error: ApiError }`, so unwrap recursively.
+ */
+function unwrapApiError(error: unknown): RetryableApiError | null {
+  if (!error || typeof error !== 'object') return null;
+  const err = error as RetryableApiError;
+  if (err.data || err.name) return err;
+  if (err.error) return unwrapApiError(err.error);
+  return err;
 }
 
 /**
- * Extract response headers from a rate-limit-shaped error event payload.
- * Lives at error.data.responseHeaders per @opencode-ai/sdk's ApiError type
- * (types.gen.d.ts: data.responseHeaders?: Record<string, string>).
+ * Structured retryable-failure detector.
+ *
+ * We intentionally do NOT regex-match free-form provider text here.
+ * Instead we follow OpenCode's behavior contract:
+ *   - retryable direct API failures carry `data.isRetryable === true`
+ *   - 429 is always retryable even if `isRetryable` is absent
+ */
+export function isRateLimitError(error: unknown): boolean {
+  const err = unwrapApiError(error);
+  if (!err?.data) return false;
+  return err.data.isRetryable === true || err.data.statusCode === 429;
+}
+
+/**
+ * Extract response headers from a structured API error.
+ * Lives at error.data.responseHeaders per @opencode-ai/sdk's ApiError type.
  */
 function extractResponseHeaders(
   error: unknown,
 ): Record<string, string> | undefined {
-  if (!error || typeof error !== 'object') return undefined;
-  const data = (error as { data?: { responseHeaders?: unknown } }).data;
-  const headers = data?.responseHeaders;
+  const headers = unwrapApiError(error)?.data?.responseHeaders;
   if (!headers || typeof headers !== 'object') return undefined;
   return headers as Record<string, string>;
 }
@@ -108,6 +124,8 @@ export class ForegroundFallbackManager {
   private readonly inProgress = new Set<string>();
   /** sessionID → timestamp of last trigger (for deduplication) */
   private readonly lastTrigger = new Map<string, number>();
+  /** task/subagent-owned child sessions (session.created with parentID) */
+  private readonly childSessions = new Set<string>();
 
   /**
    * Persistent cross-session cooldown tracker. When an Anthropic rate-limit
@@ -130,6 +148,7 @@ export class ForegroundFallbackManager {
     private readonly chains: Record<string, string[]>,
     private readonly enabled: boolean,
     cooldowns?: CooldownStore,
+    private readonly onSessionAgentChange?: SessionAgentChangeHandler,
   ) {
     this.cooldowns = cooldowns ?? createCooldownStore();
   }
@@ -144,10 +163,7 @@ export class ForegroundFallbackManager {
    * limit. Idempotent: only records forward-looking reset times. Persists
    * to disk synchronously.
    */
-  private captureCooldown(
-    sessionID: string,
-    error: unknown,
-  ): void {
+  private captureCooldown(sessionID: string, error: unknown): void {
     const currentModel = this.sessionModel.get(sessionID);
     if (!currentModel) return;
     const headers = extractResponseHeaders(error);
@@ -171,6 +187,18 @@ export class ForegroundFallbackManager {
     if (!event?.type) return;
 
     switch (event.type) {
+      case 'session.created': {
+        const props = event.properties as
+          | { info?: { id?: string; parentID?: string | null } }
+          | undefined;
+        const id = props?.info?.id;
+        const parentID = props?.info?.parentID;
+        if (id && parentID) {
+          this.childSessions.add(id);
+        }
+        break;
+      }
+
       case 'message.updated': {
         const info = (
           event.properties as { info?: Record<string, unknown> } | undefined
@@ -219,17 +247,9 @@ export class ForegroundFallbackManager {
             }
           | undefined;
         if (!props?.sessionID || props.status?.type !== 'retry') break;
-        const msg = props.status.message?.toLowerCase() ?? '';
-        if (
-          msg.includes('rate limit') ||
-          msg.includes('usage limit') ||
-          msg.includes('usage exceeded') ||
-          msg.includes('quota exceeded') ||
-          msg.includes('high concurrency') ||
-          msg.includes('reduce concurrency')
-        ) {
-          await this.tryFallback(props.sessionID);
-        }
+        // Behavior-based trigger: if OpenCode has entered structured retry mode,
+        // we should switch models regardless of the provider's free-form message text.
+        await this.tryFallback(props.sessionID);
         break;
       }
 
@@ -238,8 +258,11 @@ export class ForegroundFallbackManager {
         const props = event.properties as
           | { sessionID?: string; agentName?: unknown }
           | undefined;
-        if (props?.sessionID && typeof props.agentName === 'string') {
-          this.sessionAgent.set(props.sessionID, props.agentName);
+        if (props?.sessionID) {
+          this.childSessions.add(props.sessionID);
+          if (typeof props.agentName === 'string') {
+            this.sessionAgent.set(props.sessionID, props.agentName);
+          }
         }
         break;
       }
@@ -259,6 +282,7 @@ export class ForegroundFallbackManager {
           this.sessionModel.delete(id);
           this.sessionAgent.delete(id);
           this.sessionTried.delete(id);
+          this.childSessions.delete(id);
           this.inProgress.delete(id);
           this.lastTrigger.delete(id);
         }
@@ -273,7 +297,40 @@ export class ForegroundFallbackManager {
 
   private async tryFallback(sessionID: string): Promise<void> {
     if (!sessionID) return;
+    if (this.shouldPivotOrchestrator(sessionID)) {
+      await this.pivotOrchestrator(sessionID);
+      return;
+    }
+    await this.chainWalkFallback(sessionID);
+  }
+
+  /**
+   * Return true if a fallback trigger on this session should perform the
+   * one-shot orchestrator → orchestrator-beta pivot rather than the
+   * generic chain-walk.
+   *
+   * Conditions:
+   *   - sessionID is a foreground session (not in childSessions)
+   *   - sessionAgent.get(sessionID) === ANTHROPIC_PRIMARY_ORCHESTRATOR
+   */
+  private shouldPivotOrchestrator(sessionID: string): boolean {
+    if (this.childSessions.has(sessionID)) return false;
+    return isAnthropicPrimaryOrchestrator(this.sessionAgent.get(sessionID));
+  }
+
+  private async chainWalkFallback(sessionID: string): Promise<void> {
     if (this.inProgress.has(sessionID)) return;
+
+    if (this.childSessions.has(sessionID)) {
+      // Task-owned child sessions are pre-routed at startup by the main
+      // plugin logic. Mid-flight rescue inside the same child session is
+      // deliberately disabled because it races the parent/task completion
+      // contract and causes empty immediate returns.
+      log('[foreground-fallback] child session mid-flight fallback disabled', {
+        sessionID,
+      });
+      return;
+    }
 
     // Deduplicate: multiple events can fire for a single rate-limit event.
     const now = Date.now();
@@ -347,7 +404,10 @@ export class ForegroundFallbackManager {
         return;
       }
 
-      // Abort the currently rate-limited prompt so the session becomes idle.
+      // Foreground/main sessions use abort + async replay. The abort is
+      // what flips OpenCode out of its core retry loop so the replay can
+      // take over cleanly. Child sessions returned above before any
+      // mid-flight fallback work begins.
       try {
         await this.client.session.abort({ path: { id: sessionID } });
       } catch {
@@ -357,23 +417,28 @@ export class ForegroundFallbackManager {
       // Give the server a moment to finalise the abort before re-prompting.
       await new Promise((r) => setTimeout(r, 500));
 
-      // promptAsync queues the prompt and returns immediately — this avoids
-      // blocking the event handler while waiting for a full LLM response.
-      // Cast required: promptAsync is not in the plugin TypeScript types for
-      // oh-my-opencode-slim but IS present on the real OpenCode client at
-      // runtime (verified by opencode-rate-limit-fallback reference impl).
+      const body = {
+        parts: lastUser.parts,
+        model: ref,
+        ...(agentName ? { agent: agentName } : {}),
+      };
+
       const sessionClient = this.client.session as unknown as {
         promptAsync: (args: {
           path: { id: string };
           body: {
             parts: unknown[];
             model: { providerID: string; modelID: string };
+            agent?: string;
           };
         }) => Promise<unknown>;
       };
+
+      // Foreground/main sessions stay non-blocking: queue the replay and
+      // return immediately so the event hook does not stall the UI.
       await sessionClient.promptAsync({
         path: { id: sessionID },
-        body: { parts: lastUser.parts, model: ref },
+        body,
       });
 
       this.sessionModel.set(sessionID, nextModel);
@@ -387,6 +452,96 @@ export class ForegroundFallbackManager {
       log('[foreground-fallback] fallback attempt failed', {
         sessionID,
         error: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      this.inProgress.delete(sessionID);
+    }
+  }
+
+  /**
+   * One-shot pivot from the anthropic-primary orchestrator to
+   * orchestrator-beta. Aborts the rate-limited foreground session, sleeps
+   * briefly to let the abort settle, then replays the last user message
+   * with body.agent = 'orchestrator-beta' and body.model = gpt-5.4.
+   *
+   * The session's agent identity is reassigned via the replay's body.agent
+   * field; the plugin-level identity callback updates the same map used by
+   * subsequent subagent pre-route decisions.
+   *
+   * No chain walking. No sessionTried bookkeeping. The pivot is one-way
+   * per session — the user must manually re-select 'orchestrator' from
+   * the TUI to revert.
+   */
+  private async pivotOrchestrator(sessionID: string): Promise<void> {
+    if (!sessionID) return;
+    if (this.inProgress.has(sessionID)) return;
+    const now = Date.now();
+    if (now - (this.lastTrigger.get(sessionID) ?? 0) < DEDUP_WINDOW_MS) return;
+    this.lastTrigger.set(sessionID, now);
+    this.inProgress.add(sessionID);
+
+    try {
+      const result = await this.client.session.messages({
+        path: { id: sessionID },
+      });
+      const messages = (result.data ?? []) as Array<{
+        info: { role: string };
+        parts: unknown[];
+      }>;
+      const lastUser = [...messages]
+        .reverse()
+        .find((m) => m.info.role === 'user');
+      if (!lastUser) {
+        log('[orchestrator-pivot] no user message found', { sessionID });
+        return;
+      }
+
+      try {
+        await this.client.session.abort({ path: { id: sessionID } });
+      } catch {
+        // Session may already be idle; safe to ignore.
+      }
+      await new Promise((r) => setTimeout(r, 500));
+
+      const body = {
+        parts: lastUser.parts,
+        model: PIVOT_TARGET_MODEL,
+        agent: PIVOT_TARGET_ORCHESTRATOR,
+      };
+
+      const sessionClient = this.client.session as unknown as {
+        promptAsync: (args: {
+          path: { id: string };
+          body: {
+            parts: unknown[];
+            model: { providerID: string; modelID: string };
+            agent?: string;
+          };
+        }) => Promise<unknown>;
+      };
+
+      await sessionClient.promptAsync({
+        path: { id: sessionID },
+        body,
+      });
+
+      this.sessionAgent.set(sessionID, PIVOT_TARGET_ORCHESTRATOR);
+      this.onSessionAgentChange?.(sessionID, PIVOT_TARGET_ORCHESTRATOR);
+      this.sessionModel.set(
+        sessionID,
+        `${PIVOT_TARGET_MODEL.providerID}/${PIVOT_TARGET_MODEL.modelID}`,
+      );
+
+      log('[orchestrator-pivot] switched to orchestrator-beta', {
+        sessionID,
+        from: ANTHROPIC_PRIMARY_ORCHESTRATOR,
+        to: PIVOT_TARGET_ORCHESTRATOR,
+        model: `${PIVOT_TARGET_MODEL.providerID}/${PIVOT_TARGET_MODEL.modelID}`,
+      });
+    } catch (err) {
+      log('[orchestrator-pivot] pivot failed', {
+        sessionID,
+        error: String(err),
       });
     } finally {
       this.inProgress.delete(sessionID);

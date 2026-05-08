@@ -1,5 +1,5 @@
 /**
- * Skills that may only be invoked by `orchestrator` and `orchestrator-beta`.
+ * Skills that may only be invoked by manual root orchestrators.
  *
  * For all other agents, these skill names are explicitly denied —
  * regardless of the agent's non-SP `* allow` / `* deny`
@@ -15,9 +15,14 @@ export const RESERVED_ORCHESTRATOR_ONLY_SKILLS: ReadonlyArray<string> = [
 
 /**
  * Return `true` if the given agent is permitted to invoke reserved
- * orchestrator-only skills. Currently: `orchestrator` + `orchestrator-beta`
- * only. Variant agents (e.g. `fixer-alpha`) do NOT inherit this access.
+ * orchestrator-only skills. Currently: `orchestrator`, `orchestrator-beta`,
+ * and manual non-fallback GPT root `orchestrator-delta` only. Variant agents
+ * (e.g. `fixer-alpha`) do NOT inherit this access.
  */
 export function isReservedSkillAllowed(agentName: string): boolean {
-  return agentName === 'orchestrator' || agentName === 'orchestrator-beta';
+  return (
+    agentName === 'orchestrator' ||
+    agentName === 'orchestrator-beta' ||
+    agentName === 'orchestrator-delta'
+  );
 }

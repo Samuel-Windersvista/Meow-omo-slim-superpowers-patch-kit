@@ -1899,7 +1899,8 @@ index 0000000..c36766d
 +/**
 + * Skills that may only be invoked by `orchestrator` and `orchestrator-beta`.
 + *
-+ * For all other agents, these skill names are explicitly denied 鈥?+ * regardless of the agent's non-SP `* allow` / `* deny`
++ * For all other agents, these skill names are explicitly denied —
++ * regardless of the agent's non-SP `* allow` / `* deny`
 + * posture. This forms a closed-set whitelist that is symmetric to the
 + * closed-set blacklist in `agent-mcp-blacklist.ts`.
 + *

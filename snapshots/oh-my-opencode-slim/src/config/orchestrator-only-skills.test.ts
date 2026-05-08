@@ -22,6 +22,11 @@ describe('isReservedSkillAllowed', () => {
     expect(isReservedSkillAllowed('orchestrator-beta')).toBe(true);
   });
 
+
+  test('orchestrator-delta is allowed', () => {
+    expect(isReservedSkillAllowed('orchestrator-delta')).toBe(true);
+  });
+
   test('fixer is denied', () => {
     expect(isReservedSkillAllowed('fixer')).toBe(false);
   });
