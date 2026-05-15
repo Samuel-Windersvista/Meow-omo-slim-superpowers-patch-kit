@@ -44,7 +44,7 @@ Full final design: [`docs/specs/2026-05-08-final-orchestrator-pivot-cleanup.md`]
 
 ## Build cleanliness
 
-Patch 0007 adds `scripts/clean-dist.ts` and changes `bun run build` to run `clean:dist` first. This prevents stale deleted hook or command artifacts from surviving in `dist/` after rebuild.
+Patch 0007 adds `scripts/clean-dist.ts` and prepends `clean:dist` to the build pipeline. v1.1.0's build chain (`build:plugin && build:cli && copy:divoom-assets && tsc && generate-schema`) is preserved with `clean:dist` as the first step. This prevents stale deleted hook or command artifacts from surviving in `dist/` after rebuild.
 
 ## Optional Best-of-N support
 

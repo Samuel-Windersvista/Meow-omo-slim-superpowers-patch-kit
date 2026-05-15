@@ -11,7 +11,9 @@
 
 ## Agent availability
 
-Confirm these agents are available: `orchestrator`, `orchestrator-beta`, `orchestrator-delta`, `fixer`, `oracle`, `explorer`, `librarian`, `designer`, `observer`, and `council`.
+Confirm these agents are available: `orchestrator`, `orchestrator-beta`, `fixer`, `oracle`, `explorer`, `librarian`, `designer`, `observer`, and `council`。
+
+`orchestrator-delta` appears only if you installed the optional `opencode-config/` best-of-N example setup.
 
 `councillor` is internal-only for the council flow and does not require a separate published prompt bridge.
 
@@ -28,11 +30,17 @@ Concrete probes:
 
 ```text
 @fixer use verification-before-completion and tell me what must be checked before claiming done
+  （预期：允许 -- fixer 可访问验证技能）
 @fixer use writing-plans to draft a plan for this repo
+  （预期：拒绝 -- writing-plans 是 orchestrator 专属技能）
 @oracle use systematic-debugging to investigate a suspected bug
+  （预期：允许 -- oracle 可访问调试技能）
 @oracle use subagent-driven-development to delegate implementation
+  （预期：拒绝 -- oracle 是 Tier-3 只读代理，不能委派子代理）
 @orchestrator-delta use best-of-n-with-judge and summarize the phases without starting a fan-out
+  （预期：允许 -- delta 继承 orchestrator 的保留技能访问权）
 @fixer use best-of-n-with-judge
+  （预期：拒绝 -- fixer 不在保留技能允许列表中）
 ```
 
 ## MCP checks

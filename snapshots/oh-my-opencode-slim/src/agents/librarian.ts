@@ -1,4 +1,4 @@
-import type { AgentDefinition } from './orchestrator';
+﻿import type { AgentDefinition } from './orchestrator';
 
 const LIBRARIAN_PROMPT = `You are Librarian - a research specialist for codebases and documentation.
 

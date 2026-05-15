@@ -2,7 +2,14 @@
 
 ## Option A: disable patched OMO Slim
 
-Remove the patched OMO Slim plugin entry from `opencode.json`, and also remove or restore the `agent.general.disable` / `agent.explore.disable` changes that were added by the plugin snippet, then restart OpenCode. Your OMO Slim config normally lives at `~/.config/opencode/oh-my-opencode-slim.jsonc`.
+Remove the patched OMO Slim plugin entry from `opencode.json`, and also remove or restore the `agent.general.disable: true` / `agent.explore.disable: true` changes that were added by the plugin snippet (`config-templates/opencode.plugin-snippet.jsonc`), then restart OpenCode. Your OMO Slim config normally lives at `~/.config/opencode/oh-my-opencode-slim.jsonc`.
+
+The plugin snippet adds these overrides under `plugins.oh-my-opencode-slim.config.agent`:
+```json
+"general": { "disable": true },
+"explore": { "disable": true }
+```
+To fully revert, remove these entries or set `"disable": false`.
 
 ## Option B: restore your previous OMO Slim config
 

@@ -22,6 +22,7 @@ import {
   PIVOT_TARGET_MODEL,
   PIVOT_TARGET_ORCHESTRATOR,
 } from '../../utils/orchestrator-identity';
+import { abortSessionWithTimeout } from '../../utils/session';
 import {
   type CooldownStore,
   createCooldownStore,
@@ -55,21 +56,13 @@ type RetryableApiError = {
  * `{ error: ApiError }`, so unwrap recursively.
  */
 function unwrapApiError(error: unknown): RetryableApiError | null {
-  if (!error || typeof error !== 'object') return null;
+  if (!error || typeof error !== "object") return null;
   const err = error as RetryableApiError;
   if (err.data || err.name) return err;
   if (err.error) return unwrapApiError(err.error);
   return err;
 }
 
-/**
- * Structured retryable-failure detector.
- *
- * We intentionally do NOT regex-match free-form provider text here.
- * Instead we follow OpenCode's behavior contract:
- *   - retryable direct API failures carry `data.isRetryable === true`
- *   - 429 is always retryable even if `isRetryable` is absent
- */
 export function isRateLimitError(error: unknown): boolean {
   const err = unwrapApiError(error);
   if (!err?.data) return false;
@@ -102,6 +95,7 @@ function parseModel(
 
 /** Prevent re-triggering within this window for the same session. */
 const DEDUP_WINDOW_MS = 5_000;
+const REPROMPT_DELAY_MS = 500;
 
 // ---------------------------------------------------------------------------
 // Manager
@@ -126,16 +120,7 @@ export class ForegroundFallbackManager {
   private readonly lastTrigger = new Map<string, number>();
   /** task/subagent-owned child sessions (session.created with parentID) */
   private readonly childSessions = new Set<string>();
-
-  /**
-   * Persistent cross-session cooldown tracker. When an Anthropic rate-limit
-   * response arrives with anthropic-ratelimit-*-reset headers, the affected
-   * model is recorded here so subsequent chain traversals (in this session
-   * AND in fresh sessions across plugin restarts) skip it until the reset
-   * time elapses. Falls back to the default disk-backed store unless the
-   * caller provides one (tests inject an in-memory clock-controllable
-   * store).
-   */
+  /** Persistent cross-session cooldown tracker for cooled-down models */
   private readonly cooldowns: CooldownStore;
 
   constructor(
@@ -143,8 +128,8 @@ export class ForegroundFallbackManager {
     /**
      * Ordered fallback chains per agent.
      * e.g. { orchestrator: ['anthropic/claude-opus-4-5', 'openai/gpt-4o'] }
-     * The first model that hasn't been tried yet is selected on each fallback.
-     */
+      * The first model that hasn't been tried yet is selected on each fallback.
+      */
     private readonly chains: Record<string, string[]>,
     private readonly enabled: boolean,
     cooldowns?: CooldownStore,
@@ -160,8 +145,7 @@ export class ForegroundFallbackManager {
 
   /**
    * Capture an Anthropic-style cooldown for the model that just hit a rate
-   * limit. Idempotent: only records forward-looking reset times. Persists
-   * to disk synchronously.
+   * limit. Idempotent: only records forward-looking reset times.
    */
   private captureCooldown(sessionID: string, error: unknown): void {
     const currentModel = this.sessionModel.get(sessionID);
@@ -247,8 +231,6 @@ export class ForegroundFallbackManager {
             }
           | undefined;
         if (!props?.sessionID || props.status?.type !== 'retry') break;
-        // Behavior-based trigger: if OpenCode has entered structured retry mode,
-        // we should switch models regardless of the provider's free-form message text.
         await this.tryFallback(props.sessionID);
         break;
       }
@@ -308,10 +290,6 @@ export class ForegroundFallbackManager {
    * Return true if a fallback trigger on this session should perform the
    * one-shot orchestrator → orchestrator-beta pivot rather than the
    * generic chain-walk.
-   *
-   * Conditions:
-   *   - sessionID is a foreground session (not in childSessions)
-   *   - sessionAgent.get(sessionID) === ANTHROPIC_PRIMARY_ORCHESTRATOR
    */
   private shouldPivotOrchestrator(sessionID: string): boolean {
     if (this.childSessions.has(sessionID)) return false;
@@ -319,13 +297,10 @@ export class ForegroundFallbackManager {
   }
 
   private async chainWalkFallback(sessionID: string): Promise<void> {
+    if (!sessionID) return;
     if (this.inProgress.has(sessionID)) return;
 
     if (this.childSessions.has(sessionID)) {
-      // Task-owned child sessions are pre-routed at startup by the main
-      // plugin logic. Mid-flight rescue inside the same child session is
-      // deliberately disabled because it races the parent/task completion
-      // contract and causes empty immediate returns.
       log('[foreground-fallback] child session mid-flight fallback disabled', {
         sessionID,
       });
@@ -357,12 +332,6 @@ export class ForegroundFallbackManager {
       const tried = this.sessionTried.get(sessionID)!;
       if (currentModel) tried.add(currentModel);
 
-      // Prefer untried models that aren't currently in cooldown. If the
-      // entire chain is cooled down, fall back to "first untried" so the
-      // user isn't stuck waiting (cooldown is a soft hint, not a hard
-      // block — better to attempt and fail than to give up entirely).
-      // We let the cooldown store use its own clock so tests can inject
-      // a fake nowFn for deterministic behavior.
       let nextModel = chain.find(
         (m) => !tried.has(m) && !this.cooldowns.isCoolingDown(m),
       );
@@ -404,41 +373,42 @@ export class ForegroundFallbackManager {
         return;
       }
 
-      // Foreground/main sessions use abort + async replay. The abort is
-      // what flips OpenCode out of its core retry loop so the replay can
-      // take over cleanly. Child sessions returned above before any
-      // mid-flight fallback work begins.
-      try {
-        await this.client.session.abort({ path: { id: sessionID } });
-      } catch {
-        // Session may already be idle; safe to ignore.
-      }
-
-      // Give the server a moment to finalise the abort before re-prompting.
-      await new Promise((r) => setTimeout(r, 500));
-
-      const body = {
-        parts: lastUser.parts,
-        model: ref,
-        ...(agentName ? { agent: agentName } : {}),
-      };
-
+      // promptAsync queues the prompt and returns immediately — this avoids
+      // blocking the event handler while waiting for a full LLM response.
+      // Cast required: promptAsync is not in the plugin TypeScript types for
+      // oh-my-opencode-slim but IS present on the real OpenCode client at
+      // runtime (verified by opencode-rate-limit-fallback reference impl).
       const sessionClient = this.client.session as unknown as {
-        promptAsync: (args: {
+        promptAsync?: (args: {
           path: { id: string };
           body: {
             parts: unknown[];
             model: { providerID: string; modelID: string };
-            agent?: string;
           };
         }) => Promise<unknown>;
       };
+      if (typeof sessionClient.promptAsync !== 'function') {
+        log('[foreground-fallback] promptAsync unavailable', { sessionID });
+        return;
+      }
 
-      // Foreground/main sessions stay non-blocking: queue the replay and
-      // return immediately so the event hook does not stall the UI.
+      // Abort the currently rate-limited prompt so the session becomes idle.
+      try {
+        await abortSessionWithTimeout(this.client, sessionID);
+      } catch (error) {
+        // Session may already be idle or abort may be slow; keep fallback best-effort.
+        log('[foreground-fallback] abort did not complete cleanly', {
+          sessionID,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+
+      // Give the server a moment to finalise the abort before re-prompting.
+      await new Promise((r) => setTimeout(r, REPROMPT_DELAY_MS));
+
       await sessionClient.promptAsync({
         path: { id: sessionID },
-        body,
+        body: { parts: lastUser.parts, model: ref },
       });
 
       this.sessionModel.set(sessionID, nextModel);
@@ -460,26 +430,17 @@ export class ForegroundFallbackManager {
 
   /**
    * One-shot pivot from the anthropic-primary orchestrator to
-   * orchestrator-beta. Aborts the rate-limited foreground session, sleeps
-   * briefly to let the abort settle, then replays the last user message
-   * with body.agent = 'orchestrator-beta' and body.model = gpt-5.4.
-   *
-   * The session's agent identity is reassigned via the replay's body.agent
-   * field; the plugin-level identity callback updates the same map used by
-   * subsequent subagent pre-route decisions.
-   *
-   * No chain walking. No sessionTried bookkeeping. The pivot is one-way
-   * per session — the user must manually re-select 'orchestrator' from
-   * the TUI to revert.
+   * orchestrator-beta using gpt-5.4.
    */
   private async pivotOrchestrator(sessionID: string): Promise<void> {
     if (!sessionID) return;
     if (this.inProgress.has(sessionID)) return;
+
     const now = Date.now();
     if (now - (this.lastTrigger.get(sessionID) ?? 0) < DEDUP_WINDOW_MS) return;
     this.lastTrigger.set(sessionID, now);
-    this.inProgress.add(sessionID);
 
+    this.inProgress.add(sessionID);
     try {
       const result = await this.client.session.messages({
         path: { id: sessionID },
@@ -496,21 +457,8 @@ export class ForegroundFallbackManager {
         return;
       }
 
-      try {
-        await this.client.session.abort({ path: { id: sessionID } });
-      } catch {
-        // Session may already be idle; safe to ignore.
-      }
-      await new Promise((r) => setTimeout(r, 500));
-
-      const body = {
-        parts: lastUser.parts,
-        model: PIVOT_TARGET_MODEL,
-        agent: PIVOT_TARGET_ORCHESTRATOR,
-      };
-
       const sessionClient = this.client.session as unknown as {
-        promptAsync: (args: {
+        promptAsync?: (args: {
           path: { id: string };
           body: {
             parts: unknown[];
@@ -519,10 +467,29 @@ export class ForegroundFallbackManager {
           };
         }) => Promise<unknown>;
       };
+      if (typeof sessionClient.promptAsync !== 'function') {
+        log('[orchestrator-pivot] promptAsync unavailable', { sessionID });
+        return;
+      }
+
+      try {
+        await abortSessionWithTimeout(this.client, sessionID);
+      } catch (error) {
+        log('[orchestrator-pivot] abort did not complete cleanly', {
+          sessionID,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+
+      await new Promise((r) => setTimeout(r, REPROMPT_DELAY_MS));
 
       await sessionClient.promptAsync({
         path: { id: sessionID },
-        body,
+        body: {
+          parts: lastUser.parts,
+          model: PIVOT_TARGET_MODEL,
+          agent: PIVOT_TARGET_ORCHESTRATOR,
+        },
       });
 
       this.sessionAgent.set(sessionID, PIVOT_TARGET_ORCHESTRATOR);
@@ -541,7 +508,7 @@ export class ForegroundFallbackManager {
     } catch (err) {
       log('[orchestrator-pivot] pivot failed', {
         sessionID,
-        error: String(err),
+        error: err instanceof Error ? err.message : String(err),
       });
     } finally {
       this.inProgress.delete(sessionID);

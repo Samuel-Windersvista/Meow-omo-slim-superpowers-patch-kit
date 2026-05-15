@@ -39,12 +39,17 @@ type AgentFactory = (
 ) => AgentDefinition;
 
 const COUNCIL_TOOL_ALLOWED_AGENTS = new Set(['council']);
+const SAFE_AGENT_ALIAS_RE = /^[a-z][a-z0-9_-]*$/i;
 const TASK_FALLBACK_AGENT_SUFFIX = '__task_fallback';
 const ANTHROPIC_PROVIDER_PREFIX = 'gauge-forge-anthropic/';
 
 function normalizeDisplayName(displayName: string): string {
   const trimmed = displayName.trim();
   return trimmed.startsWith('@') ? trimmed.slice(1) : trimmed;
+}
+
+function isSafeDisplayName(displayName: string): boolean {
+  return SAFE_AGENT_ALIAS_RE.test(displayName);
 }
 
 function escapeRegExp(value: string): string {
@@ -133,7 +138,7 @@ function normalizeCustomAgentName(name: string): string {
 }
 
 function isSafeCustomAgentName(name: string): boolean {
-  return /^[a-z][a-z0-9_-]*$/i.test(name) && !isKnownAgentName(name);
+  return SAFE_AGENT_ALIAS_RE.test(name) && !isKnownAgentName(name);
 }
 
 function hasCustomAgentModel(
@@ -260,6 +265,9 @@ const SUBAGENT_FACTORIES: Record<SubagentName, AgentFactory> = {
  */
 export function createAgents(config?: PluginConfig): AgentDefinition[] {
   const disabled = getDisabledAgents(config);
+  if (!config?.council) {
+    disabled.add('council');
+  }
 
   // TEMP: If fixer has no config, inherit from librarian's model to avoid breaking
   // existing users who don't have fixer in their config yet
@@ -405,6 +413,11 @@ export function createAgents(config?: PluginConfig): AgentDefinition[] {
   const usedDisplayNames = new Set<string>();
   for (const [, displayName] of displayNameMap) {
     const normalizedDisplayName = normalizeDisplayName(displayName);
+    if (!isSafeDisplayName(normalizedDisplayName)) {
+      throw new Error(
+        `displayName '${normalizedDisplayName}' must match /^[a-z][a-z0-9_-]*$/i`,
+      );
+    }
     if (usedDisplayNames.has(normalizedDisplayName)) {
       throw new Error(
         `Duplicate displayName '${normalizedDisplayName}' assigned to multiple agents`,
@@ -505,44 +518,44 @@ export function getAgentConfigs(
       sdkConfig.displayName = a.displayName;
     }
 
-    applyClassification(a.name, sdkConfig);
+     applyClassification(a.name, sdkConfig);
 
-    // Apply closed-set restricted MCP blacklist.
-    // Non-operator agents receive explicit deny rules for windows-mcp,
-    // chrome-devtools, and/or playwright. Operator agents receive nothing,
-    // leaving those MCPs implicit-allow and future-safe for new MCPs.
-    const restrictedDenies = getRestrictedMcpDenies(a.name);
-    if (restrictedDenies.length > 0) {
-      const existingPerm = (sdkConfig.permission ?? {}) as Record<
-        string,
-        unknown
-      >;
-      for (const mcp of restrictedDenies) {
-        const sanitized = mcp.replace(/[^a-zA-Z0-9_-]/g, '_');
-        existingPerm[`${sanitized}_*`] = 'deny';
+      // Apply closed-set restricted MCP blacklist.
+      // Non-operator agents receive explicit deny rules for windows-mcp,
+      // chrome-devtools, and/or playwright. Operator agents receive nothing,
+      // leaving those MCPs implicit-allow and future-safe for new MCPs.
+      const restrictedDenies = getRestrictedMcpDenies(a.name);
+      if (restrictedDenies.length > 0) {
+        const existingPerm = (sdkConfig.permission ?? {}) as Record<
+          string,
+          unknown
+        >;
+        for (const mcp of restrictedDenies) {
+          const sanitized = mcp.replace(/[^a-zA-Z0-9_-]/g, '_');
+          existingPerm[`${sanitized}_*`] = 'deny';
+        }
+        sdkConfig.permission = existingPerm as typeof sdkConfig.permission;
       }
-      sdkConfig.permission = existingPerm as typeof sdkConfig.permission;
-    }
 
-    const normalizedDisplayName = a.displayName
-      ? normalizeDisplayName(a.displayName)
-      : undefined;
-    const shadow = getTaskFallbackShadowConfig(a, sdkConfig);
+     const normalizedDisplayName = a.displayName
+       ? normalizeDisplayName(a.displayName)
+       : undefined;
+      const shadow = getTaskFallbackShadowConfig(a, sdkConfig);
 
-    if (normalizedDisplayName && !isInternalOnly(a.name)) {
-      entries.push([normalizedDisplayName, sdkConfig]);
-      entries.push([a.name, { ...sdkConfig, hidden: true }]);
+     if (normalizedDisplayName && !isInternalOnly(a.name)) {
+       entries.push([normalizedDisplayName, sdkConfig]);
+       entries.push([a.name, { ...sdkConfig, hidden: true }]);
+        if (shadow) {
+          entries.push(shadow);
+        }
+        continue;
+      }
+
+      entries.push([a.name, sdkConfig]);
       if (shadow) {
         entries.push(shadow);
       }
-      continue;
     }
-
-    entries.push([a.name, sdkConfig]);
-    if (shadow) {
-      entries.push(shadow);
-    }
-  }
 
   return Object.fromEntries(entries);
 }
@@ -568,6 +581,9 @@ export function getDisabledAgents(config?: PluginConfig): Set<string> {
  */
 export function getEnabledAgentNames(config?: PluginConfig): string[] {
   const disabled = getDisabledAgents(config);
+  if (!config?.council) {
+    disabled.add('council');
+  }
   const customAgentNames = getCustomAgentNames(config).filter(
     (name) => !disabled.has(name),
   );

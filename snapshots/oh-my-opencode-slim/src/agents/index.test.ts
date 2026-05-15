@@ -1,5 +1,4 @@
 import { describe, expect, test } from 'bun:test';
-import { getSkillPermissionsForAgent } from '../cli/skills';
 import type { PluginConfig } from '../config';
 import {
   AgentOverrideConfigSchema,
@@ -16,6 +15,13 @@ import {
   getEnabledAgentNames,
   isSubagent,
 } from './index';
+
+function councilConfig() {
+  const parsed = CouncilConfigSchema.parse({
+    presets: { default: { alpha: { model: 'test/councillor' } } },
+  });
+  return parsed;
+}
 
 describe('agent alias backward compatibility', () => {
   test("applies 'explore' config to 'explorer' agent", () => {
@@ -119,91 +125,6 @@ describe('fixer agent fallback', () => {
   });
 });
 
-describe('base agent factory tool denies', () => {
-  test('oracle has edit/write/bash/task/todowrite deny', () => {
-    const agents = createAgents();
-    const oracle = agents.find((a) => a.name === 'oracle');
-    expect(oracle).toBeDefined();
-    const perm = (oracle?.config.permission as Record<string, string>) ?? {};
-    expect(perm.edit).toBe('deny');
-    expect(perm.write).toBe('deny');
-    expect(perm.bash).toBe('deny');
-    expect(perm.task).toBe('deny');
-    expect(perm.todowrite).toBe('deny');
-  });
-
-  test('explorer has edit/write/bash/task/todowrite deny', () => {
-    const agents = createAgents();
-    const explorer = agents.find((a) => a.name === 'explorer');
-    expect(explorer).toBeDefined();
-    const perm = (explorer?.config.permission as Record<string, string>) ?? {};
-    expect(perm.edit).toBe('deny');
-    expect(perm.write).toBe('deny');
-    expect(perm.bash).toBe('deny');
-    expect(perm.task).toBe('deny');
-    expect(perm.todowrite).toBe('deny');
-  });
-
-  test('librarian has edit/write/bash/task/todowrite deny', () => {
-    const agents = createAgents();
-    const librarian = agents.find((a) => a.name === 'librarian');
-    expect(librarian).toBeDefined();
-    const perm = (librarian?.config.permission as Record<string, string>) ?? {};
-    expect(perm.edit).toBe('deny');
-    expect(perm.write).toBe('deny');
-    expect(perm.bash).toBe('deny');
-    expect(perm.task).toBe('deny');
-    expect(perm.todowrite).toBe('deny');
-  });
-
-  test('observer has edit/write/bash/task/todowrite deny', () => {
-    const agents = createAgents({ disabled_agents: [] });
-    const observer = agents.find((a) => a.name === 'observer');
-    expect(observer).toBeDefined();
-    const perm = (observer?.config.permission as Record<string, string>) ?? {};
-    expect(perm.edit).toBe('deny');
-    expect(perm.write).toBe('deny');
-    expect(perm.bash).toBe('deny');
-    expect(perm.task).toBe('deny');
-    expect(perm.todowrite).toBe('deny');
-  });
-
-  test('council has edit/write/bash/todowrite deny but task not denied (dispatches councillor)', () => {
-    const agents = createAgents();
-    const council = agents.find((a) => a.name === 'council');
-    expect(council).toBeDefined();
-    const perm = (council?.config.permission as Record<string, string>) ?? {};
-    expect(perm.edit).toBe('deny');
-    expect(perm.write).toBe('deny');
-    expect(perm.bash).toBe('deny');
-    expect(perm.todowrite).toBe('deny');
-    expect(perm.task).not.toBe('deny');
-  });
-
-  test('fixer has task deny (no further delegation)', () => {
-    const agents = createAgents();
-    const fixer = agents.find((a) => a.name === 'fixer');
-    expect(fixer).toBeDefined();
-    const perm = (fixer?.config.permission as Record<string, string>) ?? {};
-    expect(perm.task).toBe('deny');
-    expect(perm.write).not.toBe('deny');
-    expect(perm.edit).not.toBe('deny');
-    expect(perm.bash).not.toBe('deny');
-    expect(perm.todowrite).not.toBe('deny');
-  });
-
-  test('designer has task deny (same shape as fixer)', () => {
-    const agents = createAgents();
-    const designer = agents.find((a) => a.name === 'designer');
-    expect(designer).toBeDefined();
-    const perm = (designer?.config.permission as Record<string, string>) ?? {};
-    expect(perm.task).toBe('deny');
-    expect(perm.write).not.toBe('deny');
-    expect(perm.edit).not.toBe('deny');
-    expect(perm.bash).not.toBe('deny');
-    expect(perm.todowrite).not.toBe('deny');
-  });
-});
 describe('orchestrator agent', () => {
   test('orchestrator is first in agents array', () => {
     const agents = createAgents();
@@ -315,7 +236,7 @@ describe('per-model variant in array config', () => {
 });
 
 describe('skill permissions', () => {
-  test('orchestrator gets codemap skill allowed by default', () => {
+  test('orchestrator gets command-style bundled skills allowed by default', () => {
     const agents = createAgents();
     const orchestrator = agents.find((a) => a.name === 'orchestrator');
     expect(orchestrator).toBeDefined();
@@ -326,6 +247,7 @@ describe('skill permissions', () => {
     expect(skillPerm?.['*']).toBe('allow');
     // CUSTOM_SKILLS loop must also add a named codemap entry for orchestrator
     expect(skillPerm?.codemap).toBe('allow');
+    expect(skillPerm?.clonedeps).toBe('allow');
   });
 
   test('fixer does not get codemap skill allowed by default', () => {
@@ -335,27 +257,19 @@ describe('skill permissions', () => {
     const skillPerm = (fixer?.config.permission as Record<string, unknown>)
       ?.skill as Record<string, string>;
     expect(skillPerm?.codemap).not.toBe('allow');
+    expect(skillPerm?.clonedeps).not.toBe('allow');
   });
 
-  test('oracle does not get requesting-code-review skill allowed by default', () => {
+  test('oracle does not get requesting-code-review skill (gated to orchestrator only)', () => {
     const agents = createAgents();
     const oracle = agents.find((a) => a.name === 'oracle');
     expect(oracle).toBeDefined();
     const skillPerm = (oracle?.config.permission as Record<string, unknown>)
       ?.skill as Record<string, string>;
-    expect(skillPerm?.['requesting-code-review']).toBe('deny');
+    expect(skillPerm?.['requesting-code-review']).not.toBe('allow');
   });
 
-  test('fixer has simplify skill allowed (moved from oracle)', () => {
-    const agents = createAgents();
-    const fixer = agents.find((a) => a.name === 'fixer');
-    expect(fixer).toBeDefined();
-    const skillPerm = (fixer?.config.permission as Record<string, unknown>)
-      ?.skill as Record<string, string>;
-    expect(skillPerm?.simplify).toBe('allow');
-  });
-
-  test('oracle does NOT have simplify skill allowed (moved to fixer)', () => {
+  test('oracle does not get simplify skill (gated to fixer only)', () => {
     const agents = createAgents();
     const oracle = agents.find((a) => a.name === 'oracle');
     expect(oracle).toBeDefined();
@@ -363,21 +277,13 @@ describe('skill permissions', () => {
       ?.skill as Record<string, string>;
     expect(skillPerm?.simplify).not.toBe('allow');
   });
-
-  test('fixer-alpha has simplify (variant inherits at skill-resolution layer)', () => {
-    const skillPerm = getSkillPermissionsForAgent('fixer-alpha');
-    expect(skillPerm.simplify).toBe('allow');
-  });
-
-  test('oracle-alpha does NOT have simplify (variant inherits at skill-resolution layer)', () => {
-    const skillPerm = getSkillPermissionsForAgent('oracle-alpha');
-    expect(skillPerm.simplify).not.toBe('allow');
-  });
 });
 
 describe('tool permissions', () => {
   test('council agent is allowed to invoke council_session', () => {
-    const agents = createAgents();
+    const agents = createAgents({
+      council: councilConfig(),
+    });
     const council = agents.find((a) => a.name === 'council');
     expect((council?.config.permission as any).council_session).toBe('allow');
   });
@@ -439,7 +345,7 @@ describe('agent classification', () => {
     for (const name of SUBAGENT_NAMES) {
       // Council is a dual-mode agent ("all"), rest are subagents
       if (name === 'council') {
-        expect(configs[name].mode).toBe('all');
+        expect(configs[name]).toBeUndefined();
       } else {
         expect(configs[name].mode).toBe('subagent');
       }
@@ -459,11 +365,32 @@ describe('createAgents', () => {
     expect(names).toContain('fixer');
   });
 
-  test('creates exactly 8 agents by default (1 orchestrator + 7 subagents, observer disabled)', () => {
+  test('creates exactly 7 agents by default (observer disabled, council unconfigured)', () => {
     const agents = createAgents();
-    expect(agents.length).toBe(8);
+    expect(agents.length).toBe(7);
+  });
+
+  test('does not create council when council is not configured', () => {
+    const agents = createAgents();
+    const names = agents.map((a) => a.name);
+    const orchestrator = agents.find((a) => a.name === 'orchestrator');
+
+    expect(names).not.toContain('council');
+    expect(orchestrator?.config.prompt).not.toContain('@council');
+  });
+
+  test('creates council when council is configured', () => {
+    const agents = createAgents({
+      council: councilConfig(),
+    });
+    const names = agents.map((a) => a.name);
+    const orchestrator = agents.find((a) => a.name === 'orchestrator');
+
+    expect(names).toContain('council');
+    expect(orchestrator?.config.prompt).toContain('@council');
   });
 });
+
 describe('getAgentConfigs', () => {
   test('returns config record keyed by agent name', () => {
     const configs = getAgentConfigs();
@@ -479,107 +406,13 @@ describe('getAgentConfigs', () => {
     expect(configs.orchestrator.description).toBeDefined();
     expect(configs.explorer.description).toBeDefined();
   });
-
-  test('adds hidden backup shadow config for anthropic-primary task fallback agents', () => {
-    const configs = getAgentConfigs({
-      agents: {
-        librarian: {
-          model: [
-            {
-              id: 'gauge-forge-anthropic/claude-opus-4-7',
-              variant: 'high',
-            },
-            { id: 'gauge-forge-openai/gpt-5.4', variant: 'xhigh' },
-          ],
-        },
-      },
-    });
-
-    const shadow = configs.librarian__task_fallback;
-    expect(shadow).toBeDefined();
-    expect(shadow.model).toBe('gauge-forge-openai/gpt-5.4');
-    expect(shadow.variant).toBe('xhigh');
-    expect(shadow.hidden).toBe(true);
-    expect(shadow.mode).toBe('primary');
-  });
-
-  test('does not add backup shadow config for non-anthropic primary arrays', () => {
-    const configs = getAgentConfigs({
-      agents: {
-        explorer: {
-          model: [
-            { id: 'gauge-forge-openai/gpt-5.4', variant: 'medium' },
-            {
-              id: 'gauge-forge-anthropic/claude-sonnet-4-6',
-              variant: 'high',
-            },
-          ],
-        },
-      },
-    });
-
-    expect(configs.explorer__task_fallback).toBeUndefined();
-  });
-});
-
-describe('getAgentConfigs — restricted MCP blacklist', () => {
-  test('oracle has windows-mcp_*, chrome-devtools_*, playwright_* denied', () => {
-    const configs = getAgentConfigs();
-    const oraclePerm =
-      (configs.oracle.permission as Record<string, unknown>) ?? {};
-    expect(oraclePerm['windows-mcp_*']).toBe('deny');
-    expect(oraclePerm['chrome-devtools_*']).toBe('deny');
-    expect(oraclePerm['playwright_*']).toBe('deny');
-  });
-
-  test('fixer has no restricted MCP denies (operator)', () => {
-    const configs = getAgentConfigs();
-    const fixerPerm =
-      (configs.fixer.permission as Record<string, unknown>) ?? {};
-    expect(fixerPerm['windows-mcp_*']).toBeUndefined();
-    expect(fixerPerm['chrome-devtools_*']).toBeUndefined();
-    expect(fixerPerm['playwright_*']).toBeUndefined();
-  });
-
-  test('librarian has windows-mcp_* deny but not chrome/playwright (mixed operator)', () => {
-    const configs = getAgentConfigs();
-    const libPerm =
-      (configs.librarian.permission as Record<string, unknown>) ?? {};
-    expect(libPerm['windows-mcp_*']).toBe('deny');
-    expect(libPerm['chrome-devtools_*']).toBeUndefined();
-    expect(libPerm['playwright_*']).toBeUndefined();
-  });
-
-  test('explorer-alpha (variant) inherits explorer denies', () => {
-    const configs = getAgentConfigs({
-      agents: {
-        'explorer-alpha': { model: 'openai/gpt-5.4-mini' },
-      },
-    });
-    const epAlpha =
-      (configs['explorer-alpha']?.permission as Record<string, unknown>) ?? {};
-    expect(epAlpha['windows-mcp_*']).toBe('deny');
-    expect(epAlpha['chrome-devtools_*']).toBe('deny');
-    expect(epAlpha['playwright_*']).toBe('deny');
-  });
-
-  test('wildcard has all 3 restricted MCPs denied', () => {
-    const configs = getAgentConfigs({
-      agents: {
-        wildcard: { model: 'openai/gpt-5.4-mini' },
-      },
-    });
-    const wcPerm =
-      (configs.wildcard?.permission as Record<string, unknown>) ?? {};
-    expect(wcPerm['windows-mcp_*']).toBe('deny');
-    expect(wcPerm['chrome-devtools_*']).toBe('deny');
-    expect(wcPerm['playwright_*']).toBe('deny');
-  });
 });
 
 describe('council agent model resolution', () => {
   test('council agent uses default model', () => {
-    const agents = createAgents();
+    const agents = createAgents({
+      council: councilConfig(),
+    });
     const council = agents.find((a) => a.name === 'council');
     expect(council?.config.model).toBe(DEFAULT_MODELS.council);
   });
@@ -595,14 +428,10 @@ describe('council agent model resolution', () => {
     // entry in the agent preset — the exact scenario from issue #369.
     const config: PluginConfig = {
       agents: {
-        oracle: { model: 'openai/gpt-5.4' },
+        oracle: { model: 'openai/gpt-5.5' },
       },
       council: {
-        presets: {
-          default: {
-            alpha: { model: 'openai/gpt-5.4-mini' },
-          },
-        },
+        ...councilConfig(),
         _legacyMasterModel: 'anthropic/claude-opus-4-6',
       },
     };
@@ -618,11 +447,7 @@ describe('council agent model resolution', () => {
         council: { model: 'google/gemini-3-pro' },
       },
       council: {
-        presets: {
-          default: {
-            alpha: { model: 'openai/gpt-5.4-mini' },
-          },
-        },
+        ...councilConfig(),
         _legacyMasterModel: 'anthropic/claude-opus-4-6',
       },
     };
@@ -634,13 +459,7 @@ describe('council agent model resolution', () => {
   test('council uses default when no legacy master and no preset override', () => {
     // No legacy master, no preset override → standard default
     const config: PluginConfig = {
-      council: {
-        presets: {
-          default: {
-            alpha: { model: 'openai/gpt-5.4-mini' },
-          },
-        },
-      },
+      council: councilConfig(),
     };
     const agents = createAgents(config);
     const council = agents.find((a) => a.name === 'council');
@@ -680,7 +499,7 @@ describe('options passthrough', () => {
     const config: PluginConfig = {
       agents: {
         oracle: {
-          model: 'openai/gpt-5.4',
+          model: 'openai/gpt-5.5',
           options: { textVerbosity: 'low' },
         },
       },
@@ -712,7 +531,7 @@ describe('options passthrough', () => {
     const config: PluginConfig = {
       agents: {
         oracle: {
-          model: 'openai/gpt-5.4',
+          model: 'openai/gpt-5.5',
           variant: 'high',
           temperature: 0.7,
           options: { textVerbosity: 'low', reasoningEffort: 'medium' },
@@ -721,7 +540,7 @@ describe('options passthrough', () => {
     };
     const agents = createAgents(config);
     const oracle = agents.find((a) => a.name === 'oracle');
-    expect(oracle?.config.model).toBe('openai/gpt-5.4');
+    expect(oracle?.config.model).toBe('openai/gpt-5.5');
     expect(oracle?.config.variant).toBe('high');
     expect(oracle?.config.temperature).toBe(0.7);
     expect(oracle?.config.options).toEqual({
@@ -733,7 +552,7 @@ describe('options passthrough', () => {
   test('options are absent when not configured', () => {
     const config: PluginConfig = {
       agents: {
-        oracle: { model: 'openai/gpt-5.4' },
+        oracle: { model: 'openai/gpt-5.5' },
       },
     };
     const agents = createAgents(config);
@@ -745,7 +564,7 @@ describe('options passthrough', () => {
     const config: PluginConfig = {
       agents: {
         oracle: {
-          model: 'openai/gpt-5.4',
+          model: 'openai/gpt-5.5',
           options: { textVerbosity: 'low' },
         },
       },
@@ -759,7 +578,7 @@ describe('options passthrough', () => {
     const config: PluginConfig = {
       agents: {
         oracle: {
-          model: 'openai/gpt-5.4',
+          model: 'openai/gpt-5.5',
           options: { reasoningEffort: 'medium' },
         },
       },
@@ -795,7 +614,7 @@ describe('AgentOverrideConfigSchema options validation', () => {
 
   test('accepts options alongside other fields', () => {
     const result = AgentOverrideConfigSchema.safeParse({
-      model: 'openai/gpt-5.4',
+      model: 'openai/gpt-5.5',
       variant: 'high',
       temperature: 0.7,
       options: { textVerbosity: 'low' },
@@ -808,7 +627,7 @@ describe('AgentOverrideConfigSchema options validation', () => {
 
   test('config without options is valid', () => {
     const result = AgentOverrideConfigSchema.safeParse({
-      model: 'openai/gpt-5.4',
+      model: 'openai/gpt-5.5',
     });
     expect(result.success).toBe(true);
     if (result.success) {
@@ -832,7 +651,7 @@ describe('AgentOverrideConfigSchema options validation', () => {
 
   test('accepts prompt and orchestratorPrompt override fields', () => {
     const result = AgentOverrideConfigSchema.safeParse({
-      model: 'openai/gpt-5.4',
+      model: 'openai/gpt-5.5',
       prompt: 'You are a specialized reviewer.',
       orchestratorPrompt: '@reviewer\n- Role: Specialized reviewer',
     });
@@ -847,7 +666,7 @@ describe('AgentOverrideConfigSchema options validation', () => {
 
   test('rejects empty prompt fields', () => {
     const result = AgentOverrideConfigSchema.safeParse({
-      model: 'openai/gpt-5.4',
+      model: 'openai/gpt-5.5',
       prompt: '',
     });
     expect(result.success).toBe(false);
@@ -855,7 +674,7 @@ describe('AgentOverrideConfigSchema options validation', () => {
 
   test('rejects empty orchestratorPrompt fields', () => {
     const result = AgentOverrideConfigSchema.safeParse({
-      model: 'openai/gpt-5.4',
+      model: 'openai/gpt-5.5',
       orchestratorPrompt: '',
     });
     expect(result.success).toBe(false);
@@ -863,7 +682,7 @@ describe('AgentOverrideConfigSchema options validation', () => {
 
   test('rejects description field on overrides', () => {
     const result = AgentOverrideConfigSchema.safeParse({
-      model: 'openai/gpt-5.4',
+      model: 'openai/gpt-5.5',
       description: 'not supported for custom agents',
     } as Record<string, unknown>);
     expect(result.success).toBe(false);
@@ -875,7 +694,7 @@ describe('PluginConfigSchema custom-agent-only prompt fields', () => {
     const result = PluginConfigSchema.safeParse({
       agents: {
         oracle: {
-          model: 'openai/gpt-5.4',
+          model: 'openai/gpt-5.5',
           prompt: 'ignored built-in prompt override',
         },
       },
@@ -902,7 +721,7 @@ describe('PluginConfigSchema custom-agent-only prompt fields', () => {
       presets: {
         openai: {
           oracle: {
-            model: 'openai/gpt-5.4',
+            model: 'openai/gpt-5.5',
             prompt: 'ignored preset built-in prompt override',
           },
         },
@@ -920,6 +739,18 @@ describe('PluginConfigSchema custom-agent-only prompt fields', () => {
           prompt: 'You are Janitor.',
           orchestratorPrompt: '@janitor\n- Role: Cleanup specialist',
         },
+      },
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  test('accepts sessionManager config', () => {
+    const result = PluginConfigSchema.safeParse({
+      sessionManager: {
+        maxSessionsPerAgent: 2,
+        readContextMinLines: 10,
+        readContextMaxFiles: 8,
       },
     });
 
@@ -965,13 +796,13 @@ describe('disabled_agents', () => {
 
   test('agent count decreases when agents are disabled', () => {
     const agents = createAgents();
-    expect(agents.length).toBe(8); // 1 + 7 (observer disabled by default)
+    expect(agents.length).toBe(7); // observer disabled, council unconfigured
 
     const disabledConfig: PluginConfig = {
       disabled_agents: ['observer', 'designer'],
     };
     const disabledAgents = createAgents(disabledConfig);
-    expect(disabledAgents.length).toBe(7);
+    expect(disabledAgents.length).toBe(6);
   });
 
   test('getDisabledAgents respects protection rules', () => {
@@ -1009,13 +840,15 @@ describe('disabled_agents', () => {
     expect(enabled).not.toContain('janitor');
   });
 
-  test('empty disabled_agents creates all agents including observer', () => {
+  test('empty disabled_agents creates observer but not unconfigured council', () => {
     const config: PluginConfig = {
       disabled_agents: [],
     };
     const agents = createAgents(config);
-    expect(agents.length).toBe(9);
-    expect(agents.map((a) => a.name)).toContain('observer');
+    const names = agents.map((a) => a.name);
+    expect(agents.length).toBe(8);
+    expect(names).toContain('observer');
+    expect(names).not.toContain('council');
   });
 });
 
@@ -1056,61 +889,5 @@ describe('observer agent', () => {
 
   test('DEFAULT_DISABLED_AGENTS contains observer', () => {
     expect(DEFAULT_DISABLED_AGENTS).toContain('observer');
-  });
-});
-
-describe('permission redesign — spec coverage summary', () => {
-  test('reserved skills are denied on all non-orchestrator agents', () => {
-    const configs = getAgentConfigs();
-    const reservedSkills = ['best-of-n-with-judge', 'update-memory'];
-    const orchestratorAgents = ['orchestrator', 'orchestrator-beta'];
-
-    for (const [agentName, agentConfig] of Object.entries(configs)) {
-      const perm = (agentConfig.permission as Record<string, unknown>) ?? {};
-      const skillPerm = (perm.skill as Record<string, string>) ?? {};
-      for (const reserved of reservedSkills) {
-        if (orchestratorAgents.includes(agentName)) {
-          expect(skillPerm[reserved]).toBe('allow');
-        } else {
-          expect(skillPerm[reserved]).toBe('deny');
-        }
-      }
-    }
-  });
-
-  test('all tier-3 agents have * deny on non-SP skills', () => {
-    const tier3 = [
-      'oracle', 'oracle-alpha', 'oracle-beta', 'oracle-gamma', 'oracle-delta',
-      'explorer', 'explorer-alpha', 'explorer-beta',
-      'librarian', 'librarian-alpha', 'librarian-beta',
-      'observer', 'council', 'councillor',
-      'scout', 'validator', 'gist', 'wildcard',
-    ];
-    for (const name of tier3) {
-      const skillPerm = getSkillPermissionsForAgent(name);
-      expect(skillPerm['*']).toBe('deny');
-    }
-  });
-
-  test('restricted MCP denies partition operators, librarians, and all other agents correctly', () => {
-    const configs = getAgentConfigs();
-    const operatorBases = new Set(['fixer', 'orchestrator', 'laborer', 'designer']);
-    for (const [agentName, agentConfig] of Object.entries(configs)) {
-      const perm = (agentConfig.permission as Record<string, unknown>) ?? {};
-      const base = agentName.split('-')[0];
-      if (operatorBases.has(base)) {
-        expect(perm['windows-mcp_*']).toBeUndefined();
-        expect(perm['chrome-devtools_*']).toBeUndefined();
-        expect(perm['playwright_*']).toBeUndefined();
-      } else if (base === 'librarian') {
-        expect(perm['windows-mcp_*']).toBe('deny');
-        expect(perm['chrome-devtools_*']).toBeUndefined();
-        expect(perm['playwright_*']).toBeUndefined();
-      } else {
-        expect(perm['windows-mcp_*']).toBe('deny');
-        expect(perm['chrome-devtools_*']).toBe('deny');
-        expect(perm['playwright_*']).toBe('deny');
-      }
-    }
   });
 });

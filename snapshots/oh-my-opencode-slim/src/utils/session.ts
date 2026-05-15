@@ -6,24 +6,47 @@ import type { PluginInput } from '@opencode-ai/plugin';
 
 type OpencodeClient = PluginInput['client'];
 
-export async function extractSessionAgent(
+export const SESSION_ABORT_TIMEOUT_MS = 1_000;
+
+export class OperationTimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'OperationTimeoutError';
+  }
+}
+
+export async function withTimeout<T>(
+  operation: Promise<T>,
+  timeoutMs: number,
+  message: string,
+): Promise<T> {
+  if (timeoutMs <= 0) return operation;
+
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new OperationTimeoutError(message));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function abortSessionWithTimeout(
   client: OpencodeClient,
   sessionId: string,
-): Promise<string | undefined> {
-  const messagesResult = await client.session.messages({
-    path: { id: sessionId },
-  });
-  const messages = (messagesResult.data ?? []) as Array<{
-    info?: { agent?: unknown };
-  }>;
-
-  for (const message of [...messages].reverse()) {
-    const agent = message.info?.agent;
-    if (typeof agent === 'string' && agent.length > 0) {
-      return agent;
-    }
-  }
-  return undefined;
+  timeoutMs = SESSION_ABORT_TIMEOUT_MS,
+): Promise<void> {
+  await withTimeout(
+    client.session.abort({ path: { id: sessionId } }),
+    timeoutMs,
+    `Session abort timed out after ${timeoutMs}ms`,
+  );
 }
 
 /**
@@ -75,7 +98,10 @@ export async function promptWithTimeout(
   client: OpencodeClient,
   args: Parameters<OpencodeClient['session']['prompt']>[0],
   timeoutMs: number,
+  signal?: AbortSignal,
 ): Promise<void> {
+  if (signal?.aborted) throw new Error('Prompt cancelled');
+
   if (timeoutMs <= 0) {
     await client.session.prompt(args);
     return;
@@ -83,6 +109,7 @@ export async function promptWithTimeout(
 
   const sessionId = args.path.id;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let onAbort: (() => void) | undefined;
 
   try {
     const promptPromise = client.session.prompt(args);
@@ -92,13 +119,33 @@ export async function promptWithTimeout(
       promptPromise,
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => {
-          client.session.abort({ path: { id: sessionId } }).catch(() => {});
-          reject(new Error(`Prompt timed out after ${timeoutMs}ms`));
+          reject(
+            new OperationTimeoutError(`Prompt timed out after ${timeoutMs}ms`),
+          );
         }, timeoutMs);
       }),
+      new Promise<never>((_, reject) => {
+        if (!signal) return;
+        if (signal.aborted) {
+          reject(new Error('Prompt cancelled'));
+          return;
+        }
+        onAbort = () => reject(new Error('Prompt cancelled'));
+        signal.addEventListener('abort', onAbort, { once: true });
+      }),
     ]);
+  } catch (error) {
+    if (error instanceof OperationTimeoutError) {
+      try {
+        await abortSessionWithTimeout(client, sessionId);
+      } catch {
+        // Best-effort cleanup: preserve the original prompt timeout error.
+      }
+    }
+    throw error;
   } finally {
     clearTimeout(timer);
+    if (onAbort) signal?.removeEventListener('abort', onAbort);
   }
 }
 
@@ -124,12 +171,13 @@ export interface SessionExtractionResult {
 export async function extractSessionResult(
   client: OpencodeClient,
   sessionId: string,
-  options?: { includeReasoning?: boolean },
+  options?: { directory?: string; includeReasoning?: boolean },
 ): Promise<SessionExtractionResult> {
   const includeReasoning = options?.includeReasoning ?? true;
 
   const messagesResult = await client.session.messages({
     path: { id: sessionId },
+    ...(options?.directory ? { query: { directory: options.directory } } : {}),
   });
   const messages = (messagesResult.data ?? []) as Array<{
     info?: { role: string };

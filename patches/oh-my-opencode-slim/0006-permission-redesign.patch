@@ -1,867 +1,212 @@
 diff --git a/src/agents/council.ts b/src/agents/council.ts
-new file mode 100644
-index 0000000..14139f9
---- /dev/null
+index 2b2a8c3..7b1f580 100644
+--- a/src/agents/council.ts
 +++ b/src/agents/council.ts
-@@ -0,0 +1,153 @@
-+import { shortModelLabel } from '../utils/session';
-+import { type AgentDefinition, resolvePrompt } from './orchestrator';
-+
-+// NOTE: Councillor system prompts live in the councillor agent factory.
-+// The format functions below only structure the USER message content 鈥?the
-+// agent factory provides the system prompt.
-+
-+const COUNCIL_AGENT_PROMPT = `You are the Council agent 鈥?a multi-LLM \
-+orchestration system that runs consensus across multiple models.
-+
-+**Tool**: You have access to the \`council_session\` tool.
-+
-+**When to use**:
-+- When invoked by a user with a request
-+- When you want multiple expert opinions on a complex problem
-+- When higher confidence is needed through model consensus
-+
-+**Usage**:
-+1. Call the \`council_session\` tool with the user's prompt
-+2. Optionally specify a preset (default: "default")
-+3. Receive the councillor responses formatted for synthesis
-+4. Synthesize the optimal final answer from the councillor responses
-+5. Present the synthesized result to the user
-+
-+**Synthesis Guidelines**:
-+When you receive councillor responses, synthesize them into the optimal final answer:
-+- Review all councillor responses thoroughly and create the best possible answer
-+- Credit specific insights from individual councillors by name (e.g., "alpha noted that...", "beta suggested...")
-+- Clearly explain your reasoning for the chosen approach
-+- Be transparent about trade-offs when different approaches have valid pros/cons
-+- Note any remaining uncertainties or areas where further investigation is needed
-+- If councillors disagree, explain the resolution and your reasoning
-+- Acknowledge if consensus was impossible and explain why
-+- Don't just average responses 鈥?choose the best approach and improve upon it
-+- Present the synthesized solution with relevant code examples, concrete details, and clear explanations
-+
-+**Behavior**:
-+- Delegate requests directly to council_session
-+- Don't pre-analyze or filter the prompt before calling council_session
-+- Synthesize the councillor results into a comprehensive, coherent answer
-+- Include attribution for valuable insights from specific councillors
-+- If councillors disagree, explain why you chose one approach over another`;
-+
-+export function createCouncilAgent(
-+  model: string,
-+  customPrompt?: string,
-+  customAppendPrompt?: string,
-+): AgentDefinition {
-+  const prompt = resolvePrompt(
-+    COUNCIL_AGENT_PROMPT,
-+    customPrompt,
-+    customAppendPrompt,
-+  );
-+
-+  const definition: AgentDefinition = {
-+    name: 'council',
-+    description:
-+      'Multi-LLM council agent that synthesizes responses from multiple models for higher-quality outputs',
-+    config: {
-+      temperature: 0.1,
-+      prompt,
+@@ -1,11 +1,11 @@
+-import { shortModelLabel } from '../utils/session';
++锘縤mport { shortModelLabel } from '../utils/session';
+ import { type AgentDefinition, resolvePrompt } from './orchestrator';
+ 
+ // NOTE: Councillor system prompts live in the councillor agent factory.
+-// The format functions below only structure the USER message content 鈥?the
++// The format functions below only structure the USER message content 閳?the
+ // agent factory provides the system prompt.
+ 
+-const COUNCIL_AGENT_PROMPT = `You are the Council agent 鈥?a multi-LLM \
++const COUNCIL_AGENT_PROMPT = `You are the Council agent 閳?a multi-LLM \
+ orchestration system that runs consensus across multiple models.
+ 
+ **Tool**: You have access to the \`council_session\` tool.
+@@ -22,9 +22,9 @@ orchestration system that runs consensus across multiple models.
+ 4. Follow the Synthesis Process below
+ 5. Present the result to the user
+ 
+-**Synthesis Process** (MANDATORY 鈥?follow in order):
++**Synthesis Process** (MANDATORY 閳?follow in order):
+ 1. Read the original user prompt
+-2. Review each councillor's response individually 鈥?note each councillor's \
++2. Review each councillor's response individually 閳?note each councillor's \
+ key insight and unique contribution by name
+ 3. Identify agreements and contradictions between councillors
+ 4. Resolve contradictions with explicit reasoning
+@@ -39,7 +39,7 @@ key insight and unique contribution by name
+ - Do not omit per-councillor details from the final response
+ - Do not collapse the output into only a final summary
+ - Be transparent about trade-offs when different approaches have valid pros/cons
+-- Don't just average responses 鈥?choose the best approach and improve upon it
++- Don't just average responses 閳?choose the best approach and improve upon it
+ 
+ **Required Output Format**:
+ Always include these sections in your final response:
+@@ -84,6 +84,12 @@ export function createCouncilAgent(
+     config: {
+       temperature: 0.1,
+       prompt,
 +      permission: {
 +        edit: 'deny',
 +        write: 'deny',
 +        bash: 'deny',
 +        todowrite: 'deny',
 +      },
-+    },
-+  };
-+
-+  // Council's model comes from config override or is resolved at
-+  // runtime; only set if a non-empty string is provided.
-+  if (model) {
-+    definition.config.model = model;
-+  }
-+
-+  return definition;
-+}
-+
-+/**
-+ * Build the prompt for a specific councillor session.
-+ *
-+ * Returns the raw user prompt 鈥?the agent factory (councillor.ts) provides
-+ * the system prompt with tool-aware instructions. No duplication.
-+ *
-+ * If a per-councillor prompt override is provided, it is prepended as
-+ * role/guidance context before the user's question.
-+ */
-+export function formatCouncillorPrompt(
-+  userPrompt: string,
-+  councillorPrompt?: string,
-+): string {
-+  if (!councillorPrompt) return userPrompt;
-+  return `${councillorPrompt}\n\n---\n\n${userPrompt}`;
-+}
-+
-+/**
-+ * Format councillor results for the council agent to synthesize.
-+ *
-+ * Formats councillor results as structured data that the council agent
-+ * (which called the tool) will receive as the tool response. The council
-+ * agent's system prompt contains synthesis instructions.
-+ * Returns a special message when all councillors failed to produce output.
-+ */
-+export function formatCouncillorResults(
-+  originalPrompt: string,
-+  councillorResults: Array<{
-+    name: string;
-+    model: string;
-+    status: string;
-+    result?: string;
-+    error?: string;
-+  }>,
-+): string {
-+  const completedWithResults = councillorResults.filter(
-+    (cr) => cr.status === 'completed' && cr.result,
-+  );
-+
-+  const councillorSection = completedWithResults
-+    .map((cr) => {
-+      const shortModel = shortModelLabel(cr.model);
-+      return `**${cr.name}** (${shortModel}):\n${cr.result}`;
-+    })
-+    .join('\n\n');
-+
-+  const failedSection = councillorResults
-+    .filter((cr) => cr.status !== 'completed')
-+    .map((cr) => `**${cr.name}**: ${cr.status} 鈥?${cr.error ?? 'Unknown'}`)
-+    .join('\n');
-+
-+  // Defensive guard: caller (runCouncil) short-circuits when all fail,
-+  // but this function may be reused in other contexts.
-+  if (completedWithResults.length === 0) {
-+    const errorDetails = councillorResults
-+      .map(
-+        (cr) =>
-+          `**${cr.name}** (${shortModelLabel(cr.model)}): ${cr.status} 鈥?${cr.error ?? 'Unknown'}`,
-+      )
-+      .join('\n');
-+
-+    return `---\n\n**Original Prompt**:\n${originalPrompt}\n\n---\n\n**Councillor Responses**:\nAll councillors failed to produce output:\n${errorDetails}\n\nPlease generate a response based on the original prompt alone.`;
-+  }
-+
-+  let prompt = `---\n\n**Original Prompt**:\n${originalPrompt}\n\n---\n\n**Councillor Responses**:\n${councillorSection}`;
-+
-+  if (failedSection) {
-+    prompt += `\n\n---\n\n**Failed/Timed-out Councillors**:\n${failedSection}`;
-+  }
-+
-+  prompt += '\n\n---\n\nSynthesize the optimal response based on the above.';
-+
-+  return prompt;
-+}
-diff --git a/src/agents/designer.ts b/src/agents/designer.ts
-new file mode 100644
-index 0000000..2a68778
---- /dev/null
-+++ b/src/agents/designer.ts
-@@ -0,0 +1,85 @@
-+import type { AgentDefinition } from './orchestrator';
-+
-+const DESIGNER_PROMPT = `You are a Designer - a frontend UI/UX specialist who creates and reviews intentional, polished experiences.
-+
-+**Role**: Craft and review cohesive UI/UX that balances visual impact with usability.
-+
-+## Design Principles
-+
-+**Typography**
-+- Choose distinctive, characterful fonts that elevate aesthetics
-+- Avoid generic defaults (Arial, Inter)鈥攐pt for unexpected, beautiful choices
-+- Pair display fonts with refined body fonts for hierarchy
-+
-+**Color & Theme**
-+- Commit to a cohesive aesthetic with clear color variables
-+- Dominant colors with sharp accents > timid, evenly-distributed palettes
-+- Create atmosphere through intentional color relationships
-+
-+**Motion & Interaction**
-+- Leverage framework animation utilities when available (Tailwind's transition/animation classes)
-+- Focus on high-impact moments: orchestrated page loads with staggered reveals
-+- Use scroll-triggers and hover states that surprise and delight
-+- One well-timed animation > scattered micro-interactions
-+- Drop to custom CSS/JS only when utilities can't achieve the vision
-+
-+**Spatial Composition**
-+- Break conventions: asymmetry, overlap, diagonal flow, grid-breaking
-+- Generous negative space OR controlled density鈥攃ommit to the choice
-+- Unexpected layouts that guide the eye
-+
-+**Visual Depth**
-+- Create atmosphere beyond solid colors: gradient meshes, noise textures, geometric patterns
-+- Layer transparencies, dramatic shadows, decorative borders
-+- Contextual effects that match the aesthetic (grain overlays, custom cursors)
-+
-+**Styling Approach**
-+- Default to Tailwind CSS utility classes when available鈥攆ast, maintainable, consistent
-+- Use custom CSS when the vision requires it: complex animations, unique effects, advanced compositions
-+- Balance utility-first speed with creative freedom where it matters
-+
-+**Match Vision to Execution**
-+- Maximalist designs 鈫?elaborate implementation, extensive animations, rich effects
-+- Minimalist designs 鈫?restraint, precision, careful spacing and typography
-+- Elegance comes from executing the chosen vision fully, not halfway
-+
-+## Constraints
-+- Respect existing design systems when present
-+- Leverage component libraries where available
-+- Prioritize visual excellence鈥攃ode perfection comes second
-+
-+## Review Responsibilities
-+- Review existing UI for usability, responsiveness, visual consistency, and polish when asked
-+- Call out concrete UX issues and improvements, not just abstract design advice
-+- When validating, focus on what users actually see and feel
-+
-+## Output Quality
-+You're capable of extraordinary creative work. Commit fully to distinctive visions and show what's possible when breaking conventions thoughtfully.`;
-+
-+export function createDesignerAgent(
-+  model: string,
-+  customPrompt?: string,
-+  customAppendPrompt?: string,
-+): AgentDefinition {
-+  let prompt = DESIGNER_PROMPT;
-+
-+  if (customPrompt) {
-+    prompt = customPrompt;
-+  } else if (customAppendPrompt) {
-+    prompt = `${DESIGNER_PROMPT}\n\n${customAppendPrompt}`;
-+  }
-+
-+  return {
-+    name: 'designer',
-+    description:
-+      'UI/UX design, review, and implementation. Use for styling, responsive design, component architecture and visual polish.',
-+    config: {
-+      model,
-+      temperature: 0.7,
-+      prompt,
-+      permission: {
-+        task: 'deny',
-+      },
-+    },
-+  };
-+}
-diff --git a/src/agents/explorer.ts b/src/agents/explorer.ts
-new file mode 100644
-index 0000000..697143e
---- /dev/null
-+++ b/src/agents/explorer.ts
-@@ -0,0 +1,63 @@
-+import type { AgentDefinition } from './orchestrator';
-+
-+const EXPLORER_PROMPT = `You are Explorer - a fast codebase navigation specialist.
-+
-+**Role**: Quick contextual grep for codebases. Answer "Where is X?", "Find Y", "Which file has Z".
-+
-+**When to use which tools**:
-+- **Text/regex patterns** (strings, comments, variable names): grep
-+- **Structural patterns** (function shapes, class structures): ast_grep_search
-+- **File discovery** (find by name/extension): glob
-+
-+**Behavior**:
-+- Be fast and thorough
-+- Fire multiple searches in parallel if needed
-+- Return file paths with relevant snippets
-+
-+**Output Format**:
-+<results>
-+<files>
-+- /path/to/file.ts:42 - Brief description of what's there
-+</files>
-+<answer>
-+Concise answer to the question
-+</answer>
-+</results>
-+
-+**Constraints**:
-+- READ-ONLY: Search and report, don't modify
-+- Be exhaustive but concise
-+- Include line numbers when relevant
-+`;
-+
-+export function createExplorerAgent(
-+  model: string,
-+  customPrompt?: string,
-+  customAppendPrompt?: string,
-+): AgentDefinition {
-+  let prompt = EXPLORER_PROMPT;
-+
-+  if (customPrompt) {
-+    prompt = customPrompt;
-+  } else if (customAppendPrompt) {
-+    prompt = `${EXPLORER_PROMPT}\n\n${customAppendPrompt}`;
-+  }
-+
-+  return {
-+    name: 'explorer',
-+    description:
-+      "Fast codebase search and pattern matching. Use for finding files, locating code patterns, and answering 'where is X?' questions.",
-+    config: {
-+      model,
-+      temperature: 0.1,
-+      prompt,
-+      permission: {
-+        edit: 'deny',
-+        write: 'deny',
-+        bash: 'deny',
-+        task: 'deny',
-+        todowrite: 'deny',
-+      },
-+    },
-+  };
-+}
-diff --git a/src/agents/fixer.ts b/src/agents/fixer.ts
-new file mode 100644
-index 0000000..7e251f1
---- /dev/null
-+++ b/src/agents/fixer.ts
-@@ -0,0 +1,72 @@
-+import type { AgentDefinition } from './orchestrator';
-+
-+const FIXER_PROMPT = `You are Fixer - a fast, focused implementation specialist.
-+
-+**Role**: Execute code changes efficiently. You receive complete context from research agents and clear task specifications from the Orchestrator. Your job is to implement, not plan or research.
-+
-+**Behavior**:
-+- Execute the task specification provided by the Orchestrator
-+- Use the research context (file paths, documentation, patterns) provided
-+- Read files before using edit/write tools and gather exact content before making changes
-+- Be fast and direct - no research, no delegation, No multi-step research/planning; minimal execution sequence ok
-+- Write or update tests when requested, especially for bounded tasks involving test files, fixtures, mocks, or test helpers
-+- Run relevant validation when requested or clearly applicable (otherwise note as skipped with reason)
-+- Report completion with summary of changes
-+
-+**Constraints**:
-+- NO external research (no websearch, context7, grep_app)
-+- NO delegation or spawning subagents
-+- No multi-step research/planning; minimal execution sequence ok
-+- If context is insufficient: use grep/glob/read directly 鈥?do not delegate
-+- Only ask for missing inputs you truly cannot retrieve yourself
-+- Do not act as the primary reviewer; implement requested changes and surface obvious issues briefly
-+
-+**Output Format**:
-+<summary>
-+Brief summary of what was implemented
-+</summary>
-+<changes>
-+- file1.ts: Changed X to Y
-+- file2.ts: Added Z function
-+</changes>
-+<verification>
-+- Tests passed: [yes/no/skip reason]
-+- Validation: [passed/failed/skip reason]
-+</verification>
-+
-+Use the following when no code changes were made:
-+<summary>
-+No changes required
-+</summary>
-+<verification>
-+- Tests passed: [not run - reason]
-+- Validation: [not run - reason]
-+</verification>`;
-+
-+export function createFixerAgent(
-+  model: string,
-+  customPrompt?: string,
-+  customAppendPrompt?: string,
-+): AgentDefinition {
-+  let prompt = FIXER_PROMPT;
-+
-+  if (customPrompt) {
-+    prompt = customPrompt;
-+  } else if (customAppendPrompt) {
-+    prompt = `${FIXER_PROMPT}\n\n${customAppendPrompt}`;
-+  }
-+
-+  return {
-+    name: 'fixer',
-+    description:
-+      'Fast implementation specialist. Receives complete context and task spec, executes code changes efficiently.',
-+    config: {
-+      model,
-+      temperature: 0.2,
-+      prompt,
-+      permission: {
-+        task: 'deny',
-+      },
-+    },
-+  };
-+}
-diff --git a/src/agents/index.test.ts b/src/agents/index.test.ts
-index 1ec2de7..0945ff9 100644
---- a/src/agents/index.test.ts
-+++ b/src/agents/index.test.ts
-@@ -1,4 +1,5 @@
- import { describe, expect, test } from 'bun:test';
-+import { getSkillPermissionsForAgent } from '../cli/skills';
- import type { PluginConfig } from '../config';
- import {
-   AgentOverrideConfigSchema,
-@@ -118,6 +119,91 @@ describe('fixer agent fallback', () => {
-   });
- });
+     },
+   };
  
-+describe('base agent factory tool denies', () => {
-+  test('oracle has edit/write/bash/task/todowrite deny', () => {
-+    const agents = createAgents();
-+    const oracle = agents.find((a) => a.name === 'oracle');
-+    expect(oracle).toBeDefined();
-+    const perm = (oracle?.config.permission as Record<string, string>) ?? {};
-+    expect(perm.edit).toBe('deny');
-+    expect(perm.write).toBe('deny');
-+    expect(perm.bash).toBe('deny');
-+    expect(perm.task).toBe('deny');
-+    expect(perm.todowrite).toBe('deny');
-+  });
-+
-+  test('explorer has edit/write/bash/task/todowrite deny', () => {
-+    const agents = createAgents();
-+    const explorer = agents.find((a) => a.name === 'explorer');
-+    expect(explorer).toBeDefined();
-+    const perm = (explorer?.config.permission as Record<string, string>) ?? {};
-+    expect(perm.edit).toBe('deny');
-+    expect(perm.write).toBe('deny');
-+    expect(perm.bash).toBe('deny');
-+    expect(perm.task).toBe('deny');
-+    expect(perm.todowrite).toBe('deny');
-+  });
-+
-+  test('librarian has edit/write/bash/task/todowrite deny', () => {
-+    const agents = createAgents();
-+    const librarian = agents.find((a) => a.name === 'librarian');
-+    expect(librarian).toBeDefined();
-+    const perm = (librarian?.config.permission as Record<string, string>) ?? {};
-+    expect(perm.edit).toBe('deny');
-+    expect(perm.write).toBe('deny');
-+    expect(perm.bash).toBe('deny');
-+    expect(perm.task).toBe('deny');
-+    expect(perm.todowrite).toBe('deny');
-+  });
-+
-+  test('observer has edit/write/bash/task/todowrite deny', () => {
-+    const agents = createAgents({ disabled_agents: [] });
-+    const observer = agents.find((a) => a.name === 'observer');
-+    expect(observer).toBeDefined();
-+    const perm = (observer?.config.permission as Record<string, string>) ?? {};
-+    expect(perm.edit).toBe('deny');
-+    expect(perm.write).toBe('deny');
-+    expect(perm.bash).toBe('deny');
-+    expect(perm.task).toBe('deny');
-+    expect(perm.todowrite).toBe('deny');
-+  });
-+
-+  test('council has edit/write/bash/todowrite deny but task not denied (dispatches councillor)', () => {
-+    const agents = createAgents();
-+    const council = agents.find((a) => a.name === 'council');
-+    expect(council).toBeDefined();
-+    const perm = (council?.config.permission as Record<string, string>) ?? {};
-+    expect(perm.edit).toBe('deny');
-+    expect(perm.write).toBe('deny');
-+    expect(perm.bash).toBe('deny');
-+    expect(perm.todowrite).toBe('deny');
-+    expect(perm.task).not.toBe('deny');
-+  });
-+
-+  test('fixer has task deny (no further delegation)', () => {
-+    const agents = createAgents();
-+    const fixer = agents.find((a) => a.name === 'fixer');
-+    expect(fixer).toBeDefined();
-+    const perm = (fixer?.config.permission as Record<string, string>) ?? {};
-+    expect(perm.task).toBe('deny');
-+    expect(perm.write).not.toBe('deny');
-+    expect(perm.edit).not.toBe('deny');
-+    expect(perm.bash).not.toBe('deny');
-+    expect(perm.todowrite).not.toBe('deny');
-+  });
-+
-+  test('designer has task deny (same shape as fixer)', () => {
-+    const agents = createAgents();
-+    const designer = agents.find((a) => a.name === 'designer');
-+    expect(designer).toBeDefined();
-+    const perm = (designer?.config.permission as Record<string, string>) ?? {};
-+    expect(perm.task).toBe('deny');
-+    expect(perm.write).not.toBe('deny');
-+    expect(perm.edit).not.toBe('deny');
-+    expect(perm.bash).not.toBe('deny');
-+    expect(perm.todowrite).not.toBe('deny');
-+  });
-+});
- describe('orchestrator agent', () => {
-   test('orchestrator is first in agents array', () => {
-     const agents = createAgents();
-@@ -260,13 +346,32 @@ describe('skill permissions', () => {
-     expect(skillPerm?.['requesting-code-review']).toBe('deny');
-   });
- 
--  test('oracle gets simplify skill allowed by default', () => {
-+  test('fixer has simplify skill allowed (moved from oracle)', () => {
-+    const agents = createAgents();
-+    const fixer = agents.find((a) => a.name === 'fixer');
-+    expect(fixer).toBeDefined();
-+    const skillPerm = (fixer?.config.permission as Record<string, unknown>)
-+      ?.skill as Record<string, string>;
-+    expect(skillPerm?.simplify).toBe('allow');
-+  });
-+
-+  test('oracle does NOT have simplify skill allowed (moved to fixer)', () => {
-     const agents = createAgents();
-     const oracle = agents.find((a) => a.name === 'oracle');
-     expect(oracle).toBeDefined();
-     const skillPerm = (oracle?.config.permission as Record<string, unknown>)
-       ?.skill as Record<string, string>;
--    expect(skillPerm?.simplify).toBe('allow');
-+    expect(skillPerm?.simplify).not.toBe('allow');
-+  });
-+
-+  test('fixer-alpha has simplify (variant inherits at skill-resolution layer)', () => {
-+    const skillPerm = getSkillPermissionsForAgent('fixer-alpha');
-+    expect(skillPerm.simplify).toBe('allow');
-+  });
-+
-+  test('oracle-alpha does NOT have simplify (variant inherits at skill-resolution layer)', () => {
-+    const skillPerm = getSkillPermissionsForAgent('oracle-alpha');
-+    expect(skillPerm.simplify).not.toBe('allow');
-   });
- });
- 
-@@ -359,7 +464,6 @@ describe('createAgents', () => {
-     expect(agents.length).toBe(8);
-   });
- });
--
- describe('getAgentConfigs', () => {
-   test('returns config record keyed by agent name', () => {
-     const configs = getAgentConfigs();
-@@ -375,6 +479,102 @@ describe('getAgentConfigs', () => {
-     expect(configs.orchestrator.description).toBeDefined();
-     expect(configs.explorer.description).toBeDefined();
-   });
-+
-+  test('adds hidden backup shadow config for anthropic-primary task fallback agents', () => {
-+    const configs = getAgentConfigs({
-+      agents: {
-+        librarian: {
-+          model: [
-+            {
-+              id: 'gauge-forge-anthropic/claude-opus-4-7',
-+              variant: 'high',
-+            },
-+            { id: 'gauge-forge-openai/gpt-5.4', variant: 'xhigh' },
-+          ],
-+        },
-+      },
-+    });
-+
-+    const shadow = configs.librarian__task_fallback;
-+    expect(shadow).toBeDefined();
-+    expect(shadow.model).toBe('gauge-forge-openai/gpt-5.4');
-+    expect(shadow.variant).toBe('xhigh');
-+    expect(shadow.hidden).toBe(true);
-+    expect(shadow.mode).toBe('primary');
-+  });
-+
-+  test('does not add backup shadow config for non-anthropic primary arrays', () => {
-+    const configs = getAgentConfigs({
-+      agents: {
-+        explorer: {
-+          model: [
-+            { id: 'gauge-forge-openai/gpt-5.4', variant: 'medium' },
-+            {
-+              id: 'gauge-forge-anthropic/claude-sonnet-4-6',
-+              variant: 'high',
-+            },
-+          ],
-+        },
-+      },
-+    });
-+
-+    expect(configs.explorer__task_fallback).toBeUndefined();
-+  });
-+});
-+
-+describe('getAgentConfigs 鈥?restricted MCP blacklist', () => {
-+  test('oracle has windows-mcp_*, chrome-devtools_*, playwright_* denied', () => {
-+    const configs = getAgentConfigs();
-+    const oraclePerm =
-+      (configs.oracle.permission as Record<string, unknown>) ?? {};
-+    expect(oraclePerm['windows-mcp_*']).toBe('deny');
-+    expect(oraclePerm['chrome-devtools_*']).toBe('deny');
-+    expect(oraclePerm['playwright_*']).toBe('deny');
-+  });
-+
-+  test('fixer has no restricted MCP denies (operator)', () => {
-+    const configs = getAgentConfigs();
-+    const fixerPerm =
-+      (configs.fixer.permission as Record<string, unknown>) ?? {};
-+    expect(fixerPerm['windows-mcp_*']).toBeUndefined();
-+    expect(fixerPerm['chrome-devtools_*']).toBeUndefined();
-+    expect(fixerPerm['playwright_*']).toBeUndefined();
-+  });
-+
-+  test('librarian has windows-mcp_* deny but not chrome/playwright (mixed operator)', () => {
-+    const configs = getAgentConfigs();
-+    const libPerm =
-+      (configs.librarian.permission as Record<string, unknown>) ?? {};
-+    expect(libPerm['windows-mcp_*']).toBe('deny');
-+    expect(libPerm['chrome-devtools_*']).toBeUndefined();
-+    expect(libPerm['playwright_*']).toBeUndefined();
-+  });
-+
-+  test('explorer-alpha (variant) inherits explorer denies', () => {
-+    const configs = getAgentConfigs({
-+      agents: {
-+        'explorer-alpha': { model: 'openai/gpt-5.4-mini' },
-+      },
-+    });
-+    const epAlpha =
-+      (configs['explorer-alpha']?.permission as Record<string, unknown>) ?? {};
-+    expect(epAlpha['windows-mcp_*']).toBe('deny');
-+    expect(epAlpha['chrome-devtools_*']).toBe('deny');
-+    expect(epAlpha['playwright_*']).toBe('deny');
-+  });
-+
-+  test('wildcard has all 3 restricted MCPs denied', () => {
-+    const configs = getAgentConfigs({
-+      agents: {
-+        wildcard: { model: 'openai/gpt-5.4-mini' },
-+      },
-+    });
-+    const wcPerm =
-+      (configs.wildcard?.permission as Record<string, unknown>) ?? {};
-+    expect(wcPerm['windows-mcp_*']).toBe('deny');
-+    expect(wcPerm['chrome-devtools_*']).toBe('deny');
-+    expect(wcPerm['playwright_*']).toBe('deny');
-+  });
- });
- 
- describe('council agent model resolution', () => {
-@@ -858,3 +1058,59 @@ describe('observer agent', () => {
-     expect(DEFAULT_DISABLED_AGENTS).toContain('observer');
-   });
- });
-+
-+describe('permission redesign 鈥?spec coverage summary', () => {
-+  test('reserved skills are denied on all non-orchestrator agents', () => {
-+    const configs = getAgentConfigs();
-+    const reservedSkills = ['best-of-n-with-judge', 'update-memory'];
-+    const orchestratorAgents = ['orchestrator', 'orchestrator-beta'];
-+
-+    for (const [agentName, agentConfig] of Object.entries(configs)) {
-+      const perm = (agentConfig.permission as Record<string, unknown>) ?? {};
-+      const skillPerm = (perm.skill as Record<string, string>) ?? {};
-+      for (const reserved of reservedSkills) {
-+        if (orchestratorAgents.includes(agentName)) {
-+          expect(skillPerm[reserved]).toBe('allow');
-+        } else {
-+          expect(skillPerm[reserved]).toBe('deny');
-+        }
-+      }
-+    }
-+  });
-+
-+  test('all tier-3 agents have * deny on non-SP skills', () => {
-+    const tier3 = [
-+      'oracle', 'oracle-alpha', 'oracle-beta', 'oracle-gamma', 'oracle-delta',
-+      'explorer', 'explorer-alpha', 'explorer-beta',
-+      'librarian', 'librarian-alpha', 'librarian-beta',
-+      'observer', 'council', 'councillor',
-+      'scout', 'validator', 'gist', 'wildcard',
-+    ];
-+    for (const name of tier3) {
-+      const skillPerm = getSkillPermissionsForAgent(name);
-+      expect(skillPerm['*']).toBe('deny');
-+    }
-+  });
-+
-+  test('restricted MCP denies partition operators, librarians, and all other agents correctly', () => {
-+    const configs = getAgentConfigs();
-+    const operatorBases = new Set(['fixer', 'orchestrator', 'laborer', 'designer']);
-+    for (const [agentName, agentConfig] of Object.entries(configs)) {
-+      const perm = (agentConfig.permission as Record<string, unknown>) ?? {};
-+      const base = agentName.split('-')[0];
-+      if (operatorBases.has(base)) {
-+        expect(perm['windows-mcp_*']).toBeUndefined();
-+        expect(perm['chrome-devtools_*']).toBeUndefined();
-+        expect(perm['playwright_*']).toBeUndefined();
-+      } else if (base === 'librarian') {
-+        expect(perm['windows-mcp_*']).toBe('deny');
-+        expect(perm['chrome-devtools_*']).toBeUndefined();
-+        expect(perm['playwright_*']).toBeUndefined();
-+      } else {
-+        expect(perm['windows-mcp_*']).toBe('deny');
-+        expect(perm['chrome-devtools_*']).toBe('deny');
-+        expect(perm['playwright_*']).toBe('deny');
-+      }
-+    }
-+  });
-+});
-\ No newline at end of file
-diff --git a/src/agents/index.ts b/src/agents/index.ts
-index 068dd20..eb357cf 100644
---- a/src/agents/index.ts
-+++ b/src/agents/index.ts
-@@ -13,6 +13,7 @@ import {
-   PROTECTED_AGENTS,
-   SUBAGENT_NAMES,
- } from '../config';
-+import { getRestrictedMcpDenies } from '../config/agent-mcp-blacklist';
- import { getAgentMcpList } from '../config/agent-mcps';
- 
- import { createCouncilAgent } from './council';
-@@ -38,6 +39,8 @@ type AgentFactory = (
- ) => AgentDefinition;
- 
- const COUNCIL_TOOL_ALLOWED_AGENTS = new Set(['council']);
-+const TASK_FALLBACK_AGENT_SUFFIX = '__task_fallback';
-+const ANTHROPIC_PROVIDER_PREFIX = 'gauge-forge-anthropic/';
- 
- function normalizeDisplayName(displayName: string): string {
-   const trimmed = displayName.trim();
-@@ -48,6 +51,43 @@ function escapeRegExp(value: string): string {
-   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
- }
- 
-+export function getTaskFallbackShadowName(agentName: string): string {
-+  return `${agentName}${TASK_FALLBACK_AGENT_SUFFIX}`;
-+}
-+
-+function getTaskFallbackShadowConfig(
-+  agent: AgentDefinition,
-+  sdkConfig: SDKAgentConfig & {
-+    mcps?: string[];
-+    displayName?: string;
-+    hidden?: boolean;
-+  },
-+): [string, SDKAgentConfig] | undefined {
-+  const models = agent._modelArray;
-+  if (!models || models.length < 2) {
-+    return undefined;
-+  }
-+
-+  const [primary, backup] = models;
-+  if (!primary?.id.startsWith(ANTHROPIC_PROVIDER_PREFIX)) {
-+    return undefined;
-+  }
-+
-+  const shadowConfig: SDKAgentConfig & {
-+    mcps?: string[];
-+    displayName?: string;
-+    hidden?: boolean;
-+  } = {
-+    ...sdkConfig,
-+    model: backup.id,
-+    hidden: true,
-+    mode: 'primary',
-+    ...(backup.variant ? { variant: backup.variant } : { variant: undefined }),
-+  };
-+  shadowConfig.displayName = undefined;
-+  return [getTaskFallbackShadowName(agent.name), shadowConfig];
-+}
-+
- // Agent Configuration Helpers
- 
+@@ -99,7 +105,7 @@ export function createCouncilAgent(
  /**
-@@ -467,17 +507,41 @@ export function getAgentConfigs(
+  * Build the prompt for a specific councillor session.
+  *
+- * Returns the raw user prompt 鈥?the agent factory (councillor.ts) provides
++ * Returns the raw user prompt 閳?the agent factory (councillor.ts) provides
+  * the system prompt with tool-aware instructions. No duplication.
+  *
+  * If a per-councillor prompt override is provided, it is prepended as
+@@ -144,7 +150,7 @@ export function formatCouncillorResults(
  
-     applyClassification(a.name, sdkConfig);
+   const failedSection = councillorResults
+     .filter((cr) => cr.status !== 'completed')
+-    .map((cr) => `**${cr.name}**: ${cr.status} 鈥?${cr.error ?? 'Unknown'}`)
++    .map((cr) => `**${cr.name}**: ${cr.status} 閳?${cr.error ?? 'Unknown'}`)
+     .join('\n');
  
-+    // Apply closed-set restricted MCP blacklist.
-+    // Non-operator agents receive explicit deny rules for windows-mcp,
-+    // chrome-devtools, and/or playwright. Operator agents receive nothing,
-+    // leaving those MCPs implicit-allow and future-safe for new MCPs.
-+    const restrictedDenies = getRestrictedMcpDenies(a.name);
-+    if (restrictedDenies.length > 0) {
-+      const existingPerm = (sdkConfig.permission ?? {}) as Record<
-+        string,
-+        unknown
-+      >;
-+      for (const mcp of restrictedDenies) {
-+        const sanitized = mcp.replace(/[^a-zA-Z0-9_-]/g, '_');
-+        existingPerm[`${sanitized}_*`] = 'deny';
-+      }
-+      sdkConfig.permission = existingPerm as typeof sdkConfig.permission;
-+    }
-+
-     const normalizedDisplayName = a.displayName
-       ? normalizeDisplayName(a.displayName)
-       : undefined;
-+    const shadow = getTaskFallbackShadowConfig(a, sdkConfig);
+   // Defensive guard: caller (runCouncil) short-circuits when all fail,
+@@ -153,7 +159,7 @@ export function formatCouncillorResults(
+     const errorDetails = councillorResults
+       .map(
+         (cr) =>
+-          `**${cr.name}** (${shortModelLabel(cr.model)}): ${cr.status} 鈥?${
++          `**${cr.name}** (${shortModelLabel(cr.model)}): ${cr.status} 閳?${
+             cr.error ?? 'Unknown'
+           }`,
+       )
+diff --git a/src/agents/designer.ts b/src/agents/designer.ts
+index 9615617..47a4ac5 100644
+--- a/src/agents/designer.ts
++++ b/src/agents/designer.ts
+@@ -1,4 +1,4 @@
+-import type { AgentDefinition } from './orchestrator';
++锘縤mport type { AgentDefinition } from './orchestrator';
  
-     if (normalizedDisplayName && !isInternalOnly(a.name)) {
-       entries.push([normalizedDisplayName, sdkConfig]);
-       entries.push([a.name, { ...sdkConfig, hidden: true }]);
-+      if (shadow) {
-+        entries.push(shadow);
-+      }
-       continue;
-     }
+ const DESIGNER_PROMPT = `You are a Designer - a frontend UI/UX specialist who creates and reviews intentional, polished experiences.
  
-     entries.push([a.name, sdkConfig]);
-+    if (shadow) {
-+      entries.push(shadow);
-+    }
-   }
+@@ -8,7 +8,7 @@ const DESIGNER_PROMPT = `You are a Designer - a frontend UI/UX specialist who cr
  
-   return Object.fromEntries(entries);
+ **Typography**
+ - Choose distinctive, characterful fonts that elevate aesthetics
+-- Avoid generic defaults (Arial, Inter)鈥攐pt for unexpected, beautiful choices
++- Avoid generic defaults (Arial, Inter)閳ユ攼pt for unexpected, beautiful choices
+ - Pair display fonts with refined body fonts for hierarchy
+ 
+ **Color & Theme**
+@@ -25,7 +25,7 @@ const DESIGNER_PROMPT = `You are a Designer - a frontend UI/UX specialist who cr
+ 
+ **Spatial Composition**
+ - Break conventions: asymmetry, overlap, diagonal flow, grid-breaking
+-- Generous negative space OR controlled density鈥攃ommit to the choice
++- Generous negative space OR controlled density閳ユ攦ommit to the choice
+ - Unexpected layouts that guide the eye
+ 
+ **Visual Depth**
+@@ -34,19 +34,19 @@ const DESIGNER_PROMPT = `You are a Designer - a frontend UI/UX specialist who cr
+ - Contextual effects that match the aesthetic (grain overlays, custom cursors)
+ 
+ **Styling Approach**
+-- Default to Tailwind CSS utility classes when available鈥攆ast, maintainable, consistent
++- Default to Tailwind CSS utility classes when available閳ユ攩ast, maintainable, consistent
+ - Use custom CSS when the vision requires it: complex animations, unique effects, advanced compositions
+ - Balance utility-first speed with creative freedom where it matters
+ 
+ **Match Vision to Execution**
+-- Maximalist designs 鈫?elaborate implementation, extensive animations, rich effects
+-- Minimalist designs 鈫?restraint, precision, careful spacing and typography
++- Maximalist designs 閳?elaborate implementation, extensive animations, rich effects
++- Minimalist designs 閳?restraint, precision, careful spacing and typography
+ - Elegance comes from executing the chosen vision fully, not halfway
+ 
+ ## Constraints
+ - Respect existing design systems when present
+ - Leverage component libraries where available
+-- Prioritize visual excellence鈥攃ode perfection comes second
++- Prioritize visual excellence閳ユ攦ode perfection comes second
+ 
+ ## Review Responsibilities
+ - Review existing UI for usability, responsiveness, visual consistency, and polish when asked
+@@ -77,6 +77,9 @@ export function createDesignerAgent(
+       model,
+       temperature: 0.7,
+       prompt,
++      permission: {
++        task: 'deny',
++      },
+     },
+   };
+ }
+diff --git a/src/agents/explorer.ts b/src/agents/explorer.ts
+index eda787b..fbd80fa 100644
+--- a/src/agents/explorer.ts
++++ b/src/agents/explorer.ts
+@@ -1,4 +1,4 @@
+-import type { AgentDefinition } from './orchestrator';
++锘縤mport type { AgentDefinition } from './orchestrator';
+ 
+ const EXPLORER_PROMPT = `You are Explorer - a fast codebase navigation specialist.
+ 
+@@ -51,6 +51,13 @@ export function createExplorerAgent(
+       model,
+       temperature: 0.1,
+       prompt,
++      permission: {
++        edit: 'deny',
++        write: 'deny',
++        bash: 'deny',
++        task: 'deny',
++        todowrite: 'deny',
++      },
+     },
+   };
+ }
+diff --git a/src/agents/fixer.ts b/src/agents/fixer.ts
+index 35bc21a..84aef07 100644
+--- a/src/agents/fixer.ts
++++ b/src/agents/fixer.ts
+@@ -1,4 +1,4 @@
+-import type { AgentDefinition } from './orchestrator';
++锘縤mport type { AgentDefinition } from './orchestrator';
+ 
+ const FIXER_PROMPT = `You are Fixer - a fast, focused implementation specialist.
+ 
+@@ -17,7 +17,7 @@ const FIXER_PROMPT = `You are Fixer - a fast, focused implementation specialist.
+ - NO external research (no websearch, context7, grep_app)
+ - NO delegation or spawning subagents
+ - No multi-step research/planning; minimal execution sequence ok
+-- If context is insufficient: use grep/glob/read directly 鈥?do not delegate
++- If context is insufficient: use grep/glob/read directly 閳?do not delegate
+ - Only ask for missing inputs you truly cannot retrieve yourself
+ - Do not act as the primary reviewer; implement requested changes and surface obvious issues briefly
+ 
+@@ -64,6 +64,9 @@ export function createFixerAgent(
+       model,
+       temperature: 0.2,
+       prompt,
++      permission: {
++        task: 'deny',
++      },
+     },
+   };
+ }
 diff --git a/src/agents/librarian.ts b/src/agents/librarian.ts
-new file mode 100644
-index 0000000..5e3b6bd
---- /dev/null
+index b3daf1d..6340532 100644
+--- a/src/agents/librarian.ts
 +++ b/src/agents/librarian.ts
-@@ -0,0 +1,55 @@
-+import type { AgentDefinition } from './orchestrator';
-+
-+const LIBRARIAN_PROMPT = `You are Librarian - a research specialist for codebases and documentation.
-+
-+**Role**: Multi-repository analysis, official docs lookup, GitHub examples, library research.
-+
-+**Capabilities**:
-+- Search and analyze external repositories
-+- Find official documentation for libraries
-+- Locate implementation examples in open source
-+- Understand library internals and best practices
-+
-+**Tools to Use**:
-+- context7: Official documentation lookup
-+- grep_app: Search GitHub repositories
-+- websearch: General web search for docs
-+
-+**Behavior**:
-+- Provide evidence-based answers with sources
-+- Quote relevant code snippets
-+- Link to official docs when available
-+- Distinguish between official and community patterns
-+`;
-+
-+export function createLibrarianAgent(
-+  model: string,
-+  customPrompt?: string,
-+  customAppendPrompt?: string,
-+): AgentDefinition {
-+  let prompt = LIBRARIAN_PROMPT;
-+
-+  if (customPrompt) {
-+    prompt = customPrompt;
-+  } else if (customAppendPrompt) {
-+    prompt = `${LIBRARIAN_PROMPT}\n\n${customAppendPrompt}`;
-+  }
-+
-+  return {
-+    name: 'librarian',
-+    description:
-+      'External documentation and library research. Use for official docs lookup, GitHub examples, and understanding library internals.',
-+    config: {
-+      model,
-+      temperature: 0.1,
-+      prompt,
+@@ -1,4 +1,4 @@
+-import type { AgentDefinition } from './orchestrator';
++锘縤mport type { AgentDefinition } from './orchestrator';
+ 
+ const LIBRARIAN_PROMPT = `You are Librarian - a research specialist for codebases and documentation.
+ 
+@@ -43,6 +43,13 @@ export function createLibrarianAgent(
+       model,
+       temperature: 0.1,
+       prompt,
 +      permission: {
 +        edit: 'deny',
 +        write: 'deny',
@@ -869,57 +214,50 @@ index 0000000..5e3b6bd
 +        task: 'deny',
 +        todowrite: 'deny',
 +      },
-+    },
-+  };
-+}
+     },
+   };
+ }
 diff --git a/src/agents/observer.ts b/src/agents/observer.ts
-new file mode 100644
-index 0000000..31ac428
---- /dev/null
+index 56c26d7..2574ca3 100644
+--- a/src/agents/observer.ts
 +++ b/src/agents/observer.ts
-@@ -0,0 +1,52 @@
-+import type { AgentDefinition } from './orchestrator';
-+
-+const OBSERVER_PROMPT = `You are Observer 鈥?a visual analysis specialist.
-+
-+**Role**: Interpret images, screenshots, PDFs, and diagrams. Extract structured observations for the Orchestrator to act on.
-+
-+**Behavior**:
-+- Read the file(s) specified in the prompt
-+- Analyze visual content 鈥?layouts, UI elements, text, relationships, flows
-+- For screenshots with text/code/errors: extract the **exact text** via OCR 鈥?never paraphrase error messages or code
-+- For multiple files: analyze each, then compare or relate as requested
-+- Return ONLY the extracted information relevant to the goal
-+- If the image is unclear, blurry, or partially visible: state what you CAN see and explicitly note what is uncertain 鈥?never guess or fabricate details
-+
-+**Constraints**:
-+- READ-ONLY: Analyze and report, don't modify files
-+- Save context tokens 鈥?the Orchestrator never processes the raw file
-+- Match the language of the request
-+- If info not found, state clearly what's missing
-+`;
-+
-+export function createObserverAgent(
-+  model: string,
-+  customPrompt?: string,
-+  customAppendPrompt?: string,
-+): AgentDefinition {
-+  let prompt = OBSERVER_PROMPT;
-+
-+  if (customPrompt) {
-+    prompt = customPrompt;
-+  } else if (customAppendPrompt) {
-+    prompt = `${OBSERVER_PROMPT}\n\n${customAppendPrompt}`;
-+  }
-+
-+  return {
-+    name: 'observer',
-+    description:
-+      'Visual analysis. Use for interpreting images, screenshots, PDFs, and diagrams 鈥?extracts structured observations without loading raw files into main context. Requires a vision-capable model.',
-+    config: {
-+      model,
-+      temperature: 0.1,
-+      prompt,
+@@ -1,20 +1,20 @@
+-import type { AgentDefinition } from './orchestrator';
++锘縤mport type { AgentDefinition } from './orchestrator';
+ 
+-const OBSERVER_PROMPT = `You are Observer 鈥?a visual analysis specialist.
++const OBSERVER_PROMPT = `You are Observer 閳?a visual analysis specialist.
+ 
+ **Role**: Interpret images, screenshots, PDFs, and diagrams. Extract structured observations for the Orchestrator to act on.
+ 
+ **Behavior**:
+ - Read the file(s) specified in the prompt
+-- Analyze visual content 鈥?layouts, UI elements, text, relationships, flows
+-- For screenshots with text/code/errors: extract the **exact text** via OCR 鈥?never paraphrase error messages or code
++- Analyze visual content 閳?layouts, UI elements, text, relationships, flows
++- For screenshots with text/code/errors: extract the **exact text** via OCR 閳?never paraphrase error messages or code
+ - For multiple files: analyze each, then compare or relate as requested
+ - Return ONLY the extracted information relevant to the goal
+-- If the image is unclear, blurry, or partially visible: state what you CAN see and explicitly note what is uncertain 鈥?never guess or fabricate details
++- If the image is unclear, blurry, or partially visible: state what you CAN see and explicitly note what is uncertain 閳?never guess or fabricate details
+ 
+ **Constraints**:
+ - READ-ONLY: Analyze and report, don't modify files
+-- Save context tokens 鈥?the Orchestrator never processes the raw file
++- Save context tokens 閳?the Orchestrator never processes the raw file
+ - Match the language of the request
+ - If info not found, state clearly what's missing
+ `;
+@@ -35,11 +35,18 @@ export function createObserverAgent(
+   return {
+     name: 'observer',
+     description:
+-      'Visual analysis. Use for interpreting images, screenshots, PDFs, and diagrams 鈥?extracts structured observations without loading raw files into main context. Requires a vision-capable model.',
++      'Visual analysis. Use for interpreting images, screenshots, PDFs, and diagrams 閳?extracts structured observations without loading raw files into main context. Requires a vision-capable model.',
+     config: {
+       model,
+       temperature: 0.1,
+       prompt,
 +      permission: {
 +        edit: 'deny',
 +        write: 'deny',
@@ -927,62 +265,23 @@ index 0000000..31ac428
 +        task: 'deny',
 +        todowrite: 'deny',
 +      },
-+    },
-+  };
-+}
+     },
+   };
+ }
 diff --git a/src/agents/oracle.ts b/src/agents/oracle.ts
-new file mode 100644
-index 0000000..dd3d5a2
---- /dev/null
+index 792904d..c4fdf44 100644
+--- a/src/agents/oracle.ts
 +++ b/src/agents/oracle.ts
-@@ -0,0 +1,57 @@
-+import type { AgentDefinition } from './orchestrator';
-+
-+const ORACLE_PROMPT = `You are Oracle - a strategic technical advisor and code reviewer.
-+
-+**Role**: High-IQ debugging, architecture decisions, code review, simplification, and engineering guidance.
-+
-+**Capabilities**:
-+- Analyze complex codebases and identify root causes
-+- Propose architectural solutions with tradeoffs
-+- Review code for correctness, performance, maintainability, and unnecessary complexity
-+- Enforce YAGNI and suggest simpler designs when abstractions are not pulling their weight
-+- Guide debugging when standard approaches fail
-+
-+**Behavior**:
-+- Be direct and concise
-+- Provide actionable recommendations
-+- Explain reasoning briefly
-+- Acknowledge uncertainty when present
-+- Prefer simpler designs unless complexity clearly earns its keep
-+
-+**Constraints**:
-+- READ-ONLY: You advise, you don't implement
-+- Focus on strategy, not execution
-+- Point to specific files/lines when relevant
-+`;
-+
-+export function createOracleAgent(
-+  model: string,
-+  customPrompt?: string,
-+  customAppendPrompt?: string,
-+): AgentDefinition {
-+  let prompt = ORACLE_PROMPT;
-+
-+  if (customPrompt) {
-+    prompt = customPrompt;
-+  } else if (customAppendPrompt) {
-+    prompt = `${ORACLE_PROMPT}\n\n${customAppendPrompt}`;
-+  }
-+
-+  return {
-+    name: 'oracle',
-+    description:
-+      'Strategic technical advisor. Use for architecture decisions, complex debugging, code review, simplification, and engineering guidance.',
-+    config: {
-+      model,
-+      temperature: 0.1,
-+      prompt,
+@@ -1,4 +1,4 @@
+-import type { AgentDefinition } from './orchestrator';
++锘縤mport type { AgentDefinition } from './orchestrator';
+ 
+ const ORACLE_PROMPT = `You are Oracle - a strategic technical advisor and code reviewer.
+ 
+@@ -45,6 +45,13 @@ export function createOracleAgent(
+       model,
+       temperature: 0.1,
+       prompt,
 +      permission: {
 +        edit: 'deny',
 +        write: 'deny',
@@ -990,9 +289,9 @@ index 0000000..dd3d5a2
 +        task: 'deny',
 +        todowrite: 'deny',
 +      },
-+    },
-+  };
-+}
+     },
+   };
+ }
 diff --git a/src/cli/agent-tier-policy.test.ts b/src/cli/agent-tier-policy.test.ts
 new file mode 100644
 index 0000000..b79ae80
@@ -1121,608 +420,6 @@ index 0000000..aeb9ac0
 +  const base = resolveBaseAgentName(agentName);
 +  return TIER_3_BASE_NAMES.has(base) ? 'deny' : 'allow';
 +}
-diff --git a/src/cli/custom-skills.ts b/src/cli/custom-skills.ts
-new file mode 100644
-index 0000000..189646c
---- /dev/null
-+++ b/src/cli/custom-skills.ts
-@@ -0,0 +1,104 @@
-+import {
-+  copyFileSync,
-+  existsSync,
-+  mkdirSync,
-+  readdirSync,
-+  statSync,
-+} from 'node:fs';
-+import { dirname, join } from 'node:path';
-+import { fileURLToPath } from 'node:url';
-+import { getConfigDir } from './paths';
-+
-+/**
-+ * A custom skill bundled in this repository.
-+ * Unlike npx-installed skills, these are copied from src/skills/ to the OpenCode skills directory
-+ */
-+export interface CustomSkill {
-+  /** Skill name (folder name) */
-+  name: string;
-+  /** Human-readable description */
-+  description: string;
-+  /** List of agents that should auto-allow this skill */
-+  allowedAgents: string[];
-+  /** Source path in this repo (relative to project root) */
-+  sourcePath: string;
-+}
-+
-+/**
-+ * Registry of custom skills bundled in this repository.
-+ */
-+export const CUSTOM_SKILLS: CustomSkill[] = [
-+  {
-+    name: 'simplify',
-+    description: 'Code simplification and readability-focused refactoring',
-+    allowedAgents: ['fixer'],
-+    sourcePath: 'src/skills/simplify',
-+  },
-+  {
-+    name: 'codemap',
-+    description: 'Repository understanding and hierarchical codemap generation',
-+    allowedAgents: ['orchestrator'],
-+    sourcePath: 'src/skills/codemap',
-+  },
-+];
-+
-+/**
-+ * Get the target directory for custom skills installation.
-+ */
-+export function getCustomSkillsDir(): string {
-+  return join(getConfigDir(), 'skills');
-+}
-+
-+/**
-+ * Recursively copy a directory.
-+ */
-+function copyDirRecursive(src: string, dest: string): void {
-+  if (!existsSync(dest)) {
-+    mkdirSync(dest, { recursive: true });
-+  }
-+
-+  const entries = readdirSync(src);
-+  for (const entry of entries) {
-+    const srcPath = join(src, entry);
-+    const destPath = join(dest, entry);
-+    const stat = statSync(srcPath);
-+
-+    if (stat.isDirectory()) {
-+      copyDirRecursive(srcPath, destPath);
-+    } else {
-+      const destDir = dirname(destPath);
-+      if (!existsSync(destDir)) {
-+        mkdirSync(destDir, { recursive: true });
-+      }
-+      copyFileSync(srcPath, destPath);
-+    }
-+  }
-+}
-+
-+/**
-+ * Install a custom skill by copying from src/skills/ to the OpenCode skills directory
-+ * @param skill - The custom skill to install
-+ * @param projectRoot - Root directory of oh-my-opencode-slim project
-+ * @returns True if installation succeeded, false otherwise
-+ */
-+export function installCustomSkill(skill: CustomSkill): boolean {
-+  try {
-+    const packageRoot = fileURLToPath(new URL('../..', import.meta.url));
-+    const sourcePath = join(packageRoot, skill.sourcePath);
-+    const targetPath = join(getCustomSkillsDir(), skill.name);
-+
-+    // Validate source exists
-+    if (!existsSync(sourcePath)) {
-+      console.error(`Custom skill source not found: ${sourcePath}`);
-+      return false;
-+    }
-+
-+    // Copy skill directory
-+    copyDirRecursive(sourcePath, targetPath);
-+
-+    return true;
-+  } catch (error) {
-+    console.error(`Failed to install custom skill: ${skill.name}`, error);
-+    return false;
-+  }
-+}
-diff --git a/src/cli/providers.test.ts b/src/cli/providers.test.ts
-new file mode 100644
-index 0000000..d94e968
---- /dev/null
-+++ b/src/cli/providers.test.ts
-@@ -0,0 +1,125 @@
-+/// <reference types="bun-types" />
-+
-+import { describe, expect, test } from 'bun:test';
-+import { generateLiteConfig, MODEL_MAPPINGS } from './providers';
-+
-+describe('providers', () => {
-+  test('MODEL_MAPPINGS has exactly 4 providers', () => {
-+    const keys = Object.keys(MODEL_MAPPINGS);
-+    expect(keys.sort()).toEqual(['copilot', 'kimi', 'openai', 'zai-plan']);
-+  });
-+
-+  test('generateLiteConfig always generates openai preset', () => {
-+    const config = generateLiteConfig({
-+      hasTmux: false,
-+      installSkills: false,
-+      installCustomSkills: false,
-+      reset: false,
-+    });
-+
-+    expect(config.$schema).toBe(
-+      'https://unpkg.com/oh-my-opencode-slim@latest/oh-my-opencode-slim.schema.json',
-+    );
-+    expect(config.preset).toBe('openai');
-+    const agents = (config.presets as any).openai;
-+    expect(agents).toBeDefined();
-+    expect(agents.orchestrator.model).toBe('openai/gpt-5.4');
-+    expect(agents.orchestrator.variant).toBeUndefined();
-+    expect(agents.fixer.model).toBe('openai/gpt-5.4-mini');
-+    expect(agents.fixer.variant).toBe('low');
-+  });
-+
-+  test('generateLiteConfig uses correct OpenAI models', () => {
-+    const config = generateLiteConfig({
-+      hasTmux: false,
-+      installSkills: false,
-+      installCustomSkills: false,
-+      reset: false,
-+    });
-+
-+    const agents = (config.presets as any).openai;
-+    expect(agents.orchestrator.model).toBe(
-+      MODEL_MAPPINGS.openai.orchestrator.model,
-+    );
-+    expect(agents.oracle.model).toBe('openai/gpt-5.4');
-+    expect(agents.oracle.variant).toBe('high');
-+    expect(agents.librarian.model).toBe('openai/gpt-5.4-mini');
-+    expect(agents.librarian.variant).toBe('low');
-+    expect(agents.explorer.model).toBe('openai/gpt-5.4-mini');
-+    expect(agents.explorer.variant).toBe('low');
-+    expect(agents.designer.model).toBe('openai/gpt-5.4-mini');
-+    expect(agents.designer.variant).toBe('medium');
-+  });
-+
-+  test('generateLiteConfig enables tmux when requested', () => {
-+    const config = generateLiteConfig({
-+      hasTmux: true,
-+      installSkills: false,
-+      installCustomSkills: false,
-+      reset: false,
-+    });
-+
-+    expect(config.tmux).toBeDefined();
-+    expect((config.tmux as any).enabled).toBe(true);
-+    expect((config.tmux as any).layout).toBe('main-vertical');
-+  });
-+
-+  test('generateLiteConfig includes default skills', () => {
-+    const config = generateLiteConfig({
-+      hasTmux: false,
-+      installSkills: true,
-+      installCustomSkills: false,
-+      reset: false,
-+    });
-+
-+    const agents = (config.presets as any).openai;
-+    // Orchestrator should always have '*'
-+    expect(agents.orchestrator.skills).toEqual(['*']);
-+
-+    // Oracle should not have bundled simplify
-+    expect(agents.oracle.skills).not.toContain('simplify');
-+
-+    // Orchestrator should implicitly cover bundled codemap via '*'
-+    expect(agents.orchestrator.skills).toContain('*');
-+
-+    // Designer should have 'agent-browser'
-+    expect(agents.designer.skills).toContain('agent-browser');
-+
-+    // Explorer should have no bundled skills by default
-+    expect(agents.explorer.skills).toEqual([]);
-+
-+    // Fixer should have bundled simplify
-+    expect(agents.fixer.skills).toContain('simplify');
-+  });
-+
-+  test('generateLiteConfig includes mcps field', () => {
-+    const config = generateLiteConfig({
-+      hasTmux: false,
-+      installSkills: false,
-+      installCustomSkills: false,
-+      reset: false,
-+    });
-+
-+    const agents = (config.presets as any).openai;
-+    expect(agents.orchestrator.mcps).toBeDefined();
-+    expect(Array.isArray(agents.orchestrator.mcps)).toBe(true);
-+    expect(agents.librarian.mcps).toBeDefined();
-+    expect(Array.isArray(agents.librarian.mcps)).toBe(true);
-+  });
-+
-+  test('generateLiteConfig openai includes correct mcps', () => {
-+    const config = generateLiteConfig({
-+      hasTmux: false,
-+      installSkills: false,
-+      installCustomSkills: false,
-+      reset: false,
-+    });
-+
-+    const agents = (config.presets as any).openai;
-+    expect(agents.orchestrator.mcps).toEqual(['*', '!context7']);
-+    expect(agents.librarian.mcps).toContain('websearch');
-+    expect(agents.librarian.mcps).toContain('context7');
-+    expect(agents.librarian.mcps).toContain('grep_app');
-+    expect(agents.designer.mcps).toEqual([]);
-+  });
-+});
-diff --git a/src/cli/skills.test.ts b/src/cli/skills.test.ts
-index af8e64a..7b91f8d 100644
---- a/src/cli/skills.test.ts
-+++ b/src/cli/skills.test.ts
-@@ -1,8 +1,8 @@
--import { describe, expect, it } from 'bun:test';
-+import { describe, expect, test } from 'bun:test';
- import { getSkillPermissionsForAgent } from './skills';
- 
- describe('skills permissions', () => {
--  it('allows non-superpowers skills by default', () => {
-+  test('allows non-superpowers skills by default', () => {
-     const permissions = getSkillPermissionsForAgent('designer');
- 
-     expect(permissions['*']).toBe('allow');
-@@ -10,7 +10,7 @@ describe('skills permissions', () => {
-     expect(permissions.simplify).toBeUndefined();
-   });
- 
--  it('applies superpowers policy for orchestrator', () => {
-+  test('applies superpowers policy for orchestrator', () => {
-     const permissions = getSkillPermissionsForAgent('orchestrator');
- 
-     expect(permissions['*']).toBe('allow');
-@@ -19,7 +19,7 @@ describe('skills permissions', () => {
-     expect(permissions['using-superpowers']).toBe('deny');
-   });
- 
--  it('allows only approved superpowers skills for designer', () => {
-+  test('allows only approved superpowers skills for designer', () => {
-     const permissions = getSkillPermissionsForAgent('designer');
- 
-     expect(permissions['test-driven-development']).toBe('allow');
-@@ -29,19 +29,29 @@ describe('skills permissions', () => {
-     expect(permissions['using-superpowers']).toBe('deny');
-   });
- 
--  it('does not bypass superpowers gating through legacy permission-only skills', () => {
-+  test('does not bypass superpowers gating through legacy permission-only skills', () => {
-     const permissions = getSkillPermissionsForAgent('oracle');
- 
--    expect(permissions.simplify).toBe('allow');
--    expect(permissions['receiving-code-review']).toBe('allow');
-+    expect(permissions.simplify).not.toBe('allow');
-+    expect(permissions['receiving-code-review']).toBe('deny');
-     expect(permissions['requesting-code-review']).toBe('deny');
-     expect(permissions['writing-plans']).toBe('deny');
-   });
- 
--  it('honors explicit skill list overrides', () => {
-+  test('moves simplify from oracle variants to fixer family', () => {
-+    const fixerPermissions = getSkillPermissionsForAgent('fixer');
-+    const fixerAlphaPermissions = getSkillPermissionsForAgent('fixer-alpha');
-+    const oracleAlphaPermissions = getSkillPermissionsForAgent('oracle-alpha');
-+
-+    expect(fixerPermissions.simplify).toBe('allow');
-+    expect(fixerAlphaPermissions.simplify).toBe('allow');
-+    expect(oracleAlphaPermissions.simplify).not.toBe('allow');
-+  });
-+
-+  test('honors explicit skill list overrides', () => {
-     const emptyPerms = getSkillPermissionsForAgent('orchestrator', []);
-     expect(emptyPerms['*']).toBe('deny');
--    expect(emptyPerms['brainstorming']).toBe('deny');
-+    expect(emptyPerms.brainstorming).toBe('deny');
-     expect(emptyPerms['using-superpowers']).toBe('deny');
- 
-     const specificPerms = getSkillPermissionsForAgent('designer', [
-@@ -54,7 +64,7 @@ describe('skills permissions', () => {
-     expect(specificPerms['test-driven-development']).toBe('deny');
-   });
- 
--  it('does not let explicit skill lists grant forbidden superpowers skills', () => {
-+  test('does not let explicit skill lists grant forbidden superpowers skills', () => {
-     const permissions = getSkillPermissionsForAgent('designer', [
-       'writing-plans',
-       'using-superpowers',
-@@ -66,7 +76,7 @@ describe('skills permissions', () => {
-     expect(permissions['agent-browser']).toBe('allow');
-   });
- 
--  it('lets explicit skill lists narrow otherwise-allowed superpowers skills', () => {
-+  test('lets explicit skill lists narrow otherwise-allowed superpowers skills', () => {
-     const permissions = getSkillPermissionsForAgent('orchestrator', [
-       'brainstorming',
-     ]);
-@@ -75,7 +85,7 @@ describe('skills permissions', () => {
-     expect(permissions['writing-plans']).toBe('deny');
-   });
- 
--  it('honors wildcard in explicit list', () => {
-+  test('honors wildcard in explicit list', () => {
-     const wildcardPerms = getSkillPermissionsForAgent('designer', ['*']);
-     expect(wildcardPerms['*']).toBe('allow');
-     expect(wildcardPerms['writing-plans']).toBe('deny');
-@@ -83,3 +93,120 @@ describe('skills permissions', () => {
-     expect(wildcardPerms['using-superpowers']).toBe('deny');
-   });
- });
-+
-+describe('getSkillPermissionsForAgent 鈥?tier 3 default deny', () => {
-+  test('oracle has * deny (tier 3)', () => {
-+    const perms = getSkillPermissionsForAgent('oracle');
-+    expect(perms['*']).toBe('deny');
-+  });
-+
-+  test('explorer has * deny (tier 3)', () => {
-+    const perms = getSkillPermissionsForAgent('explorer');
-+    expect(perms['*']).toBe('deny');
-+  });
-+
-+  test('wildcard has * deny (tier 3)', () => {
-+    const perms = getSkillPermissionsForAgent('wildcard');
-+    expect(perms['*']).toBe('deny');
-+  });
-+
-+  test('oracle-alpha inherits oracle * deny', () => {
-+    const perms = getSkillPermissionsForAgent('oracle-alpha');
-+    expect(perms['*']).toBe('deny');
-+  });
-+
-+  test('fixer has * allow (tier 2)', () => {
-+    const perms = getSkillPermissionsForAgent('fixer');
-+    expect(perms['*']).toBe('allow');
-+  });
-+
-+  test('designer has * allow (tier 2)', () => {
-+    const perms = getSkillPermissionsForAgent('designer');
-+    expect(perms['*']).toBe('allow');
-+  });
-+
-+  test('orchestrator has * allow (tier 1)', () => {
-+    const perms = getSkillPermissionsForAgent('orchestrator');
-+    expect(perms['*']).toBe('allow');
-+  });
-+
-+  test('oracle preserves SP allow for systematic-debugging despite * deny', () => {
-+    const perms = getSkillPermissionsForAgent('oracle');
-+    expect(perms['systematic-debugging']).toBe('allow');
-+  });
-+});
-+
-+describe('getSkillPermissionsForAgent 鈥?reserved orchestrator-only skills', () => {
-+  test('orchestrator can use best-of-n-with-judge', () => {
-+    const perms = getSkillPermissionsForAgent('orchestrator');
-+    expect(perms['best-of-n-with-judge']).toBe('allow');
-+  });
-+
-+  test('orchestrator can use update-memory', () => {
-+    const perms = getSkillPermissionsForAgent('orchestrator');
-+    expect(perms['update-memory']).toBe('allow');
-+  });
-+
-+  test('orchestrator-beta can use both reserved skills', () => {
-+    const perms = getSkillPermissionsForAgent('orchestrator-beta');
-+    expect(perms['best-of-n-with-judge']).toBe('allow');
-+    expect(perms['update-memory']).toBe('allow');
-+  });
-+
-+  test('fixer cannot use best-of-n-with-judge despite * allow', () => {
-+    const perms = getSkillPermissionsForAgent('fixer');
-+    expect(perms['best-of-n-with-judge']).toBe('deny');
-+  });
-+
-+  test('fixer cannot use update-memory despite * allow', () => {
-+    const perms = getSkillPermissionsForAgent('fixer');
-+    expect(perms['update-memory']).toBe('deny');
-+  });
-+
-+  test('wildcard cannot use either reserved skill', () => {
-+    const perms = getSkillPermissionsForAgent('wildcard');
-+    expect(perms['best-of-n-with-judge']).toBe('deny');
-+    expect(perms['update-memory']).toBe('deny');
-+  });
-+
-+  test('fixer-alpha cannot use reserved skills (no inheritance)', () => {
-+    const perms = getSkillPermissionsForAgent('fixer-alpha');
-+    expect(perms['best-of-n-with-judge']).toBe('deny');
-+  });
-+});
-+
-+describe('getSkillPermissionsForAgent 鈥?reserved skills still override explicit skillList', () => {
-+  test('orchestrator explicit list still gets reserved skills allowed', () => {
-+    const perms = getSkillPermissionsForAgent('orchestrator', [
-+      'brainstorming',
-+    ]);
-+    expect(perms['best-of-n-with-judge']).toBe('allow');
-+    expect(perms['update-memory']).toBe('allow');
-+    expect(perms.brainstorming).toBe('allow');
-+  });
-+
-+  test('fixer explicit list cannot grant reserved skills', () => {
-+    const perms = getSkillPermissionsForAgent('fixer', [
-+      'best-of-n-with-judge',
-+      'update-memory',
-+      'my-skill',
-+    ]);
-+    expect(perms['best-of-n-with-judge']).toBe('deny');
-+    expect(perms['update-memory']).toBe('deny');
-+    expect(perms['my-skill']).toBe('allow');
-+  });
-+
-+  test('wildcard explicit wildcard still cannot access reserved skills', () => {
-+    const perms = getSkillPermissionsForAgent('wildcard', ['*']);
-+    expect(perms['best-of-n-with-judge']).toBe('deny');
-+    expect(perms['update-memory']).toBe('deny');
-+  });
-+});
-+
-+describe('getSkillPermissionsForAgent 鈥?explicit skillList override still works', () => {
-+  test('laborer with skills:[] gets * deny + all SP denied', () => {
-+    const perms = getSkillPermissionsForAgent('laborer', []);
-+    expect(perms['*']).toBe('deny');
-+    expect(perms['systematic-debugging']).toBe('deny');
-+  });
-+});
-diff --git a/src/cli/skills.ts b/src/cli/skills.ts
-index 7e30fea..7c64d31 100644
---- a/src/cli/skills.ts
-+++ b/src/cli/skills.ts
-@@ -1,4 +1,9 @@
- import { spawnSync } from 'node:child_process';
-+import {
-+  isReservedSkillAllowed,
-+  RESERVED_ORCHESTRATOR_ONLY_SKILLS,
-+} from '../config/orchestrator-only-skills';
-+import { getDefaultNonSpPolicy } from './agent-tier-policy';
- import { CUSTOM_SKILLS } from './custom-skills';
- import {
-   buildSuperpowersSkillPermissions,
-@@ -58,8 +63,7 @@ export const RECOMMENDED_SKILLS: RecommendedSkill[] = [
-  * Skills managed externally (not installed by this plugin's CLI).
-  * Entries here only affect agent permission grants 鈥?nothing is installed.
-  */
--export const PERMISSION_ONLY_SKILLS: PermissionOnlySkill[] = [
--];
-+export const PERMISSION_ONLY_SKILLS: PermissionOnlySkill[] = [];
- 
- /**
-  * Install a skill using `npx skills add`.
-@@ -139,11 +143,13 @@ export function getSkillPermissionsForAgent(
-         policy === 'allow' && explicit === 'allow' ? 'allow' : 'deny';
-     }
- 
-+    applyReservedSkillOverrides(explicitPermissions, agentName);
-     return explicitPermissions;
-   }
- 
-+  const defaultPolicy = getDefaultNonSpPolicy(agentName);
-   const permissions: Record<string, 'allow' | 'ask' | 'deny'> = {
--    '*': 'allow',
-+    '*': defaultPolicy,
-     ...superpowersPermissions,
-   };
- 
-@@ -184,5 +190,18 @@ export function getSkillPermissionsForAgent(
-     }
-   }
- 
-+  applyReservedSkillOverrides(permissions, agentName);
-   return permissions;
- }
-+
-+function applyReservedSkillOverrides(
-+  permissions: Record<string, 'allow' | 'ask' | 'deny'>,
-+  agentName: string,
-+): void {
-+  const reservedPolicy: 'allow' | 'deny' = isReservedSkillAllowed(agentName)
-+    ? 'allow'
-+    : 'deny';
-+  for (const skill of RESERVED_ORCHESTRATOR_ONLY_SKILLS) {
-+    permissions[skill] = reservedPolicy;
-+  }
-+}
-diff --git a/src/cli/superpowers-policy.test.ts b/src/cli/superpowers-policy.test.ts
-index fdc4cbd..b78753f 100644
---- a/src/cli/superpowers-policy.test.ts
-+++ b/src/cli/superpowers-policy.test.ts
-@@ -7,22 +7,48 @@ import {
- } from './superpowers-policy';
- 
- describe('superpowers policy', () => {
--  it('grants only implementer-discipline skills to fixer', () => {
--    const allowed = [...getAllowedSuperpowersSkillsForAgent('fixer', FALLBACK_SUPERPOWERS_SKILLS)].sort();
--
--    expect(allowed).toEqual([
--      'systematic-debugging',
--      'test-driven-development',
--      'verification-before-completion',
--    ]);
-+  it('fixer gets TDD + DBG + VBC + RCR (4 skills, RCR added)', () => {
-+    const allowed = getAllowedSuperpowersSkillsForAgent('fixer');
-+
-+    expect(allowed.has('test-driven-development')).toBe(true);
-+    expect(allowed.has('systematic-debugging')).toBe(true);
-+    expect(allowed.has('verification-before-completion')).toBe(true);
-+    expect(allowed.has('receiving-code-review')).toBe(true);
-+    expect(allowed.size).toBe(4);
-+  });
-+
-+  it('designer gets TDD + DBG + VBC + RCR (4 skills, RCR added)', () => {
-+    const allowed = getAllowedSuperpowersSkillsForAgent('designer');
-+
-+    expect(allowed.has('test-driven-development')).toBe(true);
-+    expect(allowed.has('systematic-debugging')).toBe(true);
-+    expect(allowed.has('verification-before-completion')).toBe(true);
-+    expect(allowed.has('receiving-code-review')).toBe(true);
-+    expect(allowed.size).toBe(4);
-+  });
-+
-+  it('oracle gets only systematic-debugging in SP allowlist', () => {
-+    const allowed = getAllowedSuperpowersSkillsForAgent('oracle');
-+
-+    expect(allowed.has('systematic-debugging')).toBe(true);
-+    expect(allowed.has('verification-before-completion')).toBe(false);
-+    expect(allowed.has('receiving-code-review')).toBe(false);
-+    expect(allowed.size).toBe(1);
-+  });
-+
-+  it('oracle-alpha inherits oracle (DBG only)', () => {
-+    const allowed = getAllowedSuperpowersSkillsForAgent('oracle-alpha');
-+
-+    expect(allowed.has('systematic-debugging')).toBe(true);
-+    expect(allowed.size).toBe(1);
-   });
- 
--  it('grants reviewer skills to oracle and hides controller skills', () => {
-+  it('grants only systematic-debugging to oracle and hides controller skills', () => {
-     const permissions = buildSuperpowersSkillPermissions('oracle', FALLBACK_SUPERPOWERS_SKILLS);
- 
-     expect(permissions['systematic-debugging']).toBe('allow');
--    expect(permissions['verification-before-completion']).toBe('allow');
--    expect(permissions['receiving-code-review']).toBe('allow');
-+    expect(permissions['verification-before-completion']).toBe('deny');
-+    expect(permissions['receiving-code-review']).toBe('deny');
-     expect(permissions['writing-plans']).toBe('deny');
-     expect(permissions['subagent-driven-development']).toBe('deny');
-   });
-diff --git a/src/cli/superpowers-policy.ts b/src/cli/superpowers-policy.ts
-index ad5cbb3..0cd48d4 100644
---- a/src/cli/superpowers-policy.ts
-+++ b/src/cli/superpowers-policy.ts
-@@ -27,16 +27,16 @@ const AGENT_ALLOWED_SUPERPOWERS: Record<string, string[]> = {
-     'test-driven-development',
-     'systematic-debugging',
-     'verification-before-completion',
-+    'receiving-code-review',
-   ],
-   designer: [
-     'test-driven-development',
-     'systematic-debugging',
-     'verification-before-completion',
-+    'receiving-code-review',
-   ],
-   oracle: [
-     'systematic-debugging',
--    'verification-before-completion',
--    'receiving-code-review',
-   ],
-   explorer: [],
-   librarian: [],
 diff --git a/src/config/agent-mcp-blacklist.test.ts b/src/config/agent-mcp-blacklist.test.ts
 new file mode 100644
 index 0000000..7720619
@@ -1842,10 +539,10 @@ index 0000000..fe04bf0
 \ No newline at end of file
 diff --git a/src/config/orchestrator-only-skills.test.ts b/src/config/orchestrator-only-skills.test.ts
 new file mode 100644
-index 0000000..3ad77d0
+index 0000000..069b53a
 --- /dev/null
 +++ b/src/config/orchestrator-only-skills.test.ts
-@@ -0,0 +1,44 @@
+@@ -0,0 +1,49 @@
 +import { describe, expect, test } from 'bun:test';
 +import {
 +  RESERVED_ORCHESTRATOR_ONLY_SKILLS,
@@ -1870,6 +567,11 @@ index 0000000..3ad77d0
 +    expect(isReservedSkillAllowed('orchestrator-beta')).toBe(true);
 +  });
 +
++
++  test('orchestrator-delta is allowed', () => {
++    expect(isReservedSkillAllowed('orchestrator-delta')).toBe(true);
++  });
++
 +  test('fixer is denied', () => {
 +    expect(isReservedSkillAllowed('fixer')).toBe(false);
 +  });
@@ -1892,15 +594,14 @@ index 0000000..3ad77d0
 +});
 diff --git a/src/config/orchestrator-only-skills.ts b/src/config/orchestrator-only-skills.ts
 new file mode 100644
-index 0000000..c36766d
+index 0000000..63aca92
 --- /dev/null
 +++ b/src/config/orchestrator-only-skills.ts
-@@ -0,0 +1,23 @@
+@@ -0,0 +1,28 @@
 +/**
-+ * Skills that may only be invoked by `orchestrator` and `orchestrator-beta`.
++ * Skills that may only be invoked by manual root orchestrators.
 + *
-+ * For all other agents, these skill names are explicitly denied —
-+ * regardless of the agent's non-SP `* allow` / `* deny`
++ * For all other agents, these skill names are explicitly denied 鈥?+ * regardless of the agent's non-SP `* allow` / `* deny`
 + * posture. This forms a closed-set whitelist that is symmetric to the
 + * closed-set blacklist in `agent-mcp-blacklist.ts`.
 + *
@@ -1913,489 +614,17 @@ index 0000000..c36766d
 +
 +/**
 + * Return `true` if the given agent is permitted to invoke reserved
-+ * orchestrator-only skills. Currently: `orchestrator` + `orchestrator-beta`
-+ * only. Variant agents (e.g. `fixer-alpha`) do NOT inherit this access.
++ * orchestrator-only skills. Currently: `orchestrator`, `orchestrator-beta`,
++ * and manual non-fallback GPT root `orchestrator-delta` only. Variant agents
++ * (e.g. `fixer-alpha`) do NOT inherit this access.
 + */
 +export function isReservedSkillAllowed(agentName: string): boolean {
-+  return agentName === 'orchestrator' || agentName === 'orchestrator-beta';
-+}
-diff --git a/src/index.ts b/src/index.ts
-index 511306b..b37baf8 100644
---- a/src/index.ts
-+++ b/src/index.ts
-@@ -1,5 +1,10 @@
- import type { Plugin } from '@opencode-ai/plugin';
--import { createAgents, getAgentConfigs, getDisabledAgents } from './agents';
-+import {
-+  createAgents,
-+  getAgentConfigs,
-+  getDisabledAgents,
-+  getTaskFallbackShadowName,
-+} from './agents';
- import { buildOrchestratorPrompt } from './agents/orchestrator';
- import { isOrchestratorAgent } from './cli/superpowers-policy';
- import { loadPluginConfig, type MultiplexerConfig } from './config';
-@@ -9,6 +14,7 @@ import {
-   createApplyPatchHook,
-   createAutoUpdateCheckerHook,
-   createChatHeadersHook,
-+  createCostObservatoryStarterHook,
-   createDelegateTaskRetryHook,
-   createFilterAvailableSkillsHook,
-   createJsonErrorRecoveryHook,
-@@ -16,6 +22,7 @@ import {
-   createPostFileToolNudgeHook,
-   createTodoContinuationHook,
-   ForegroundFallbackManager,
-+  isRateLimitError,
- } from './hooks';
- import { processImageAttachments } from './hooks/image-hook';
- import { createInterviewManager } from './interview';
-@@ -32,10 +39,15 @@ import {
-   createPresetManager,
-   createWebfetchTool,
- } from './tools';
--import { collapseSystemInPlace } from './utils/system-collapse';
--import { resolveRuntimeAgentName, rewriteDisplayNameMentions } from './utils';
-+import {
-+  createInternalAgentTextPart,
-+  resolveRuntimeAgentName,
-+  rewriteDisplayNameMentions,
-+} from './utils';
- import { initLogger, log } from './utils/logger';
-+import { mergeAgentConfig } from './utils/merge-agent-config';
- import { SubagentDepthTracker } from './utils/subagent-depth';
-+import { collapseSystemInPlace } from './utils/system-collapse';
- 
- /**
-  * Best-effort log to opencode's app logger.
-@@ -60,6 +72,32 @@ async function appLog(
-   }
- }
- 
-+const ANTHROPIC_PROVIDER_PREFIX = 'gauge-forge-anthropic/';
-+
-+function isAnthropicPrimaryModel(model: string | undefined): boolean {
 +  return (
-+    typeof model === 'string' && model.startsWith(ANTHROPIC_PROVIDER_PREFIX)
++    agentName === 'orchestrator' ||
++    agentName === 'orchestrator-beta' ||
++    agentName === 'orchestrator-delta'
 +  );
 +}
-+
-+function getAnthropicTaskFallbackRoute(
-+  agentName: string,
-+  models: Array<{ id: string; variant?: string }> | undefined,
-+):
-+  | {
-+      shadowAgentName: string;
-+      backupModel: string;
-+    }
-+  | undefined {
-+  if (!models || models.length < 2) return undefined;
-+  const [primary, backup] = models;
-+  if (!isAnthropicPrimaryModel(primary?.id)) return undefined;
-+  return {
-+    shadowAgentName: getTaskFallbackShadowName(agentName),
-+    backupModel: backup.id,
-+  };
-+}
-+
- /** Minimum expected registrations for a healthy plugin load. */
- const HEALTH_CHECK = {
-   minAgents: 5,
-@@ -99,11 +137,30 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
-   let depthTracker: SubagentDepthTracker;
-   let multiplexerSessionManager: MultiplexerSessionManager;
-   let autoUpdateChecker: ReturnType<typeof createAutoUpdateCheckerHook>;
-+  let _costObservatoryStarter: ReturnType<
-+    typeof createCostObservatoryStarterHook
-+  >;
-   let phaseReminderHook: ReturnType<typeof createPhaseReminderHook>;
-   let filterAvailableSkillsHook: ReturnType<
-     typeof createFilterAvailableSkillsHook
-   >;
-   let sessionAgentMap: Map<string, string>;
-+  let sessionRootMap: Map<string, string>;
-+  let sessionCurrentModelMap: Map<string, string>;
-+  let anthropicDegradedRoots: Set<string>;
-+  // Manually-forced degraded flag from /anthropic-degraded on. Survives the
-+  // per-turn chat.message clear that anthropicDegradedRoots is subject to,
-+  // so the debug command can reliably exercise the pre-route path without
-+  // having to actually exhaust an Anthropic quota. Cleared only via
-+  // /anthropic-degraded off or session.deleted.
-+  let anthropicForcedRoots: Set<string>;
-+  let anthropicTaskFallbacks!: Record<
-+    string,
-+    {
-+      shadowAgentName: string;
-+      backupModel: string;
-+    }
-+  >;
-   let postFileToolNudgeHook: ReturnType<typeof createPostFileToolNudgeHook>;
-   let chatHeadersHook: ReturnType<typeof createChatHeadersHook>;
-   let delegateTaskRetryHook: ReturnType<typeof createDelegateTaskRetryHook>;
-@@ -136,6 +193,25 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
-         modelArrayMap[agentDef.name] = agentDef._modelArray;
-       }
-     }
-+    anthropicTaskFallbacks = {} as Record<
-+      string,
-+      {
-+        shadowAgentName: string;
-+        backupModel: string;
-+      }
-+    >;
-+    // Record anthropic-primary agents that have an explicit backup model in
-+    // their _modelArray. Task-owned child sessions cannot be safely rescued
-+    // mid-flight, so we use this map to pre-route fresh child sessions onto
-+    // backup models whenever the root session has already proven Anthropic is
-+    // unhealthy.
-+    for (const [agentName, models] of Object.entries(modelArrayMap)) {
-+      const route = getAnthropicTaskFallbackRoute(agentName, models);
-+      if (route) {
-+        anthropicTaskFallbacks[agentName] = route;
-+      }
-+    }
-+
-     // Build runtime fallback chains for all foreground agents. Each chain
-     // is an ordered list of model strings to try when the current model is
-     // rate-limited. Seeds from _modelArray entries (when the user
-@@ -187,6 +263,10 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
-     }
- 
-     depthTracker = new SubagentDepthTracker();
-+    sessionRootMap = new Map<string, string>();
-+    sessionCurrentModelMap = new Map<string, string>();
-+    anthropicDegradedRoots = new Set<string>();
-+    anthropicForcedRoots = new Set<string>();
- 
-     // Initialize council tools (only when council is configured)
-     councilTools = config.council
-@@ -212,6 +292,8 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
-       autoUpdate: true,
-     });
- 
-+    _costObservatoryStarter = createCostObservatoryStarterHook(ctx);
-+
-     // Initialize phase reminder hook for workflow compliance
-     phaseReminderHook = createPhaseReminderHook();
- 
-@@ -274,6 +356,40 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
-     throw err;
-   }
- 
-+  const getRootSessionId = (sessionID: string): string => {
-+    return sessionRootMap.get(sessionID) ?? sessionID;
-+  };
-+
-+  const markRootAnthropicDegraded = (
-+    sessionID: string,
-+    source: string,
-+  ): void => {
-+    const model = sessionCurrentModelMap.get(sessionID);
-+    if (!isAnthropicPrimaryModel(model)) return;
-+    const rootSessionID = getRootSessionId(sessionID);
-+    if (!anthropicDegradedRoots.has(rootSessionID)) {
-+      anthropicDegradedRoots.add(rootSessionID);
-+      log('[child-preroute] root anthropic degraded', {
-+        source,
-+        sessionID,
-+        rootSessionID,
-+        model,
-+      });
-+    }
-+  };
-+
-+  const clearRootAnthropicDegraded = (
-+    rootSessionID: string,
-+    source: string,
-+  ): void => {
-+    if (anthropicDegradedRoots.delete(rootSessionID)) {
-+      log('[child-preroute] root anthropic restored', {
-+        source,
-+        rootSessionID,
-+      });
-+    }
-+  };
-+
-   // 鈹€鈹€ Health check: validate registrations 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
-   const agentCount = Object.keys(agents).length;
-   const mcpCount = Object.keys(mcps).length;
-@@ -354,15 +470,17 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
-             name
-           ] as Record<string, unknown> | undefined;
-           if (existing) {
--            // Shallow merge: plugin defaults first, user overrides win
--            (opencodeConfig.agent as Record<string, unknown>)[name] = {
--              ...pluginAgent,
--              ...existing,
--            };
-+            (opencodeConfig.agent as Record<string, unknown>)[name] =
-+              mergeAgentConfig(
-+                pluginAgent as Record<string, unknown>,
-+                existing,
-+              );
-           } else {
--            (opencodeConfig.agent as Record<string, unknown>)[name] = {
--              ...pluginAgent,
--            };
-+            (opencodeConfig.agent as Record<string, unknown>)[name] =
-+              mergeAgentConfig(
-+                pluginAgent as Record<string, unknown>,
-+                undefined,
-+              );
-           }
-         }
-       }
-@@ -523,6 +641,20 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
-         };
-       }
- 
-+      if (!configCommand?.['anthropic-degraded']) {
-+        if (!opencodeConfig.command) {
-+          opencodeConfig.command = {};
-+        }
-+        (opencodeConfig.command as Record<string, unknown>)[
-+          'anthropic-degraded'
-+        ] = {
-+          template:
-+            'Inspect or override the current root-session Anthropic degraded flag: /anthropic-degraded on|off|status',
-+          description:
-+            'Debug command for task-child startup pre-route when Anthropic is unhealthy',
-+        };
-+      }
-+
-       interviewManager.registerCommand(opencodeConfig);
-       presetManager.registerCommand(opencodeConfig);
-     },
-@@ -540,14 +672,63 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
-       if (event.type === 'session.created') {
-         const childSessionId = event.properties?.info?.id;
-         const parentSessionId = event.properties?.info?.parentID;
-+        if (childSessionId) {
-+          const rootSessionId = parentSessionId
-+            ? (sessionRootMap.get(parentSessionId) ?? parentSessionId)
-+            : childSessionId;
-+          sessionRootMap.set(childSessionId, rootSessionId);
-+        }
-         if (depthTracker && childSessionId && parentSessionId) {
-           depthTracker.registerChild(parentSessionId, childSessionId);
-         }
-       }
- 
-+      if (event.type === 'message.updated') {
-+        const info = event.properties?.info as
-+          | {
-+              sessionID?: string;
-+              providerID?: string;
-+              modelID?: string;
-+              error?: unknown;
-+            }
-+          | undefined;
-+        if (
-+          info?.sessionID &&
-+          typeof info.providerID === 'string' &&
-+          typeof info.modelID === 'string'
-+        ) {
-+          sessionCurrentModelMap.set(
-+            info.sessionID,
-+            `${info.providerID}/${info.modelID}`,
-+          );
-+        }
-+        if (info?.sessionID && info.error && isRateLimitError(info.error)) {
-+          markRootAnthropicDegraded(info.sessionID, 'message.updated');
-+        }
-+      }
-+
-+      if (event.type === 'session.error') {
-+        const props = event.properties as
-+          | { sessionID?: string; error?: unknown }
-+          | undefined;
-+        if (props?.sessionID && props.error && isRateLimitError(props.error)) {
-+          markRootAnthropicDegraded(props.sessionID, 'session.error');
-+        }
-+      }
-+
-+      if (
-+        event.type === 'session.status' &&
-+        event.properties?.sessionID &&
-+        event.properties?.status?.type === 'retry'
-+      ) {
-+        markRootAnthropicDegraded(
-+          event.properties.sessionID,
-+          'session.status.retry',
-+        );
-+      }
-+
-       // Runtime model fallback for foreground agents (rate-limit detection)
-       await foregroundFallback.handleEvent(input.event);
--
-       // Todo-continuation: auto-continue orchestrator on incomplete todos
-       await todoContinuationHook.handleEvent(input);
- 
-@@ -591,7 +772,14 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
-           depthTracker.cleanup(sessionID);
-         }
-         if (sessionID) {
-+          const rootSessionID = getRootSessionId(sessionID);
-           sessionAgentMap.delete(sessionID);
-+          sessionCurrentModelMap.delete(sessionID);
-+          sessionRootMap.delete(sessionID);
-+          if (rootSessionID === sessionID) {
-+            anthropicDegradedRoots.delete(rootSessionID);
-+            anthropicForcedRoots.delete(rootSessionID);
-+          }
-         }
-       }
-     },
-@@ -608,11 +796,110 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
-           args?: { patchText?: unknown; [key: string]: unknown };
-         },
-       );
-+
-+      if (input.tool !== 'task') {
-+        return;
-+      }
-+
-+      const args = output.args as
-+        | { subagent_type?: unknown; task_id?: unknown }
-+        | undefined;
-+      if (typeof args?.subagent_type !== 'string') {
-+        return;
-+      }
-+      // Resumed tasks already have an existing child session/model; only
-+      // fresh task spawns are pre-routed.
-+      if (typeof args.task_id === 'string' && args.task_id.length > 0) {
-+        return;
-+      }
-+
-+      const rootSessionID = getRootSessionId(input.sessionID);
-+      const isAuto = anthropicDegradedRoots.has(rootSessionID);
-+      const isForced = anthropicForcedRoots.has(rootSessionID);
-+      if (!isAuto && !isForced) {
-+        log('[child-preroute] skip: root not degraded', {
-+          rootSessionID,
-+          subagentType: args.subagent_type,
-+        });
-+        return;
-+      }
-+
-+      const route = anthropicTaskFallbacks[args.subagent_type];
-+      if (!route) {
-+        log('[child-preroute] skip: no anthropic鈫抌ackup route for agent', {
-+          rootSessionID,
-+          subagentType: args.subagent_type,
-+          source: isForced ? 'forced' : 'auto',
-+        });
-+        return;
-+      }
-+
-+      const originalSubagentType = args.subagent_type;
-+      args.subagent_type = route.shadowAgentName;
-+      log('[child-preroute] rerouted task-owned child to backup shadow agent', {
-+        rootSessionID,
-+        callerSessionID: input.sessionID,
-+        subagentType: originalSubagentType,
-+        shadowAgentType: route.shadowAgentName,
-+        model: route.backupModel,
-+        source: isForced ? 'forced' : 'auto',
-+      });
-     },
- 
-     // Direct interception of /auto-continue command 鈥?bypasses LLM
-     // round-trip
-     'command.execute.before': async (input, output) => {
-+      if (input.command === 'anthropic-degraded') {
-+        const parts = output.parts as Array<{ type: string; text?: string }>;
-+        parts.length = 0;
-+        const rootSessionID = getRootSessionId(input.sessionID);
-+        const arg = input.arguments.trim().toLowerCase();
-+        if (arg === 'on') {
-+          anthropicForcedRoots.add(rootSessionID);
-+          log('[child-preroute] root anthropic forced ON (manual)', {
-+            rootSessionID,
-+          });
-+          parts.push(
-+            createInternalAgentTextPart(
-+              `Anthropic degraded flag forced ON for root session ${rootSessionID}. Fresh task-owned child sessions using Anthropic-primary lanes will be pre-routed to their backup model.`,
-+            ),
-+          );
-+          return;
-+        }
-+        if (arg === 'off') {
-+          const hadForced = anthropicForcedRoots.delete(rootSessionID);
-+          const hadAuto = anthropicDegradedRoots.delete(rootSessionID);
-+          log('[child-preroute] root anthropic forced OFF (manual)', {
-+            rootSessionID,
-+            clearedForced: hadForced,
-+            clearedAuto: hadAuto,
-+          });
-+          parts.push(
-+            createInternalAgentTextPart(
-+              `Anthropic degraded flag forced OFF for root session ${rootSessionID}. Fresh task-owned child sessions will use their normal primary model again.`,
-+            ),
-+          );
-+          return;
-+        }
-+        const forcedOn = anthropicForcedRoots.has(rootSessionID);
-+        const autoOn = anthropicDegradedRoots.has(rootSessionID);
-+        const state =
-+          forcedOn && autoOn
-+            ? 'ON (forced+auto)'
-+            : forcedOn
-+              ? 'ON (forced)'
-+              : autoOn
-+                ? 'ON (auto)'
-+                : 'OFF';
-+        parts.length = 0;
-+        parts.push(
-+          createInternalAgentTextPart(
-+            `Anthropic degraded flag for root session ${rootSessionID}: ${state}. Use /anthropic-degraded on|off|status.`,
-+          ),
-+        );
-+        return;
-+      }
-+
-       await todoContinuationHook.handleCommandExecuteBefore(
-         input as {
-           command: string;
-@@ -662,9 +949,28 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
-         output.message.agent = agent;
-       }
- 
-+      if (!sessionRootMap.has(input.sessionID)) {
-+        sessionRootMap.set(input.sessionID, input.sessionID);
-+      }
-+      const rootSessionID = getRootSessionId(input.sessionID);
-+
-       if (agent) {
-         sessionAgentMap.set(input.sessionID, agent);
-       }
-+
-+      // Per design: each new root/main prompt clears the degraded flag and
-+      // gives Anthropic one fresh chance. If the prompt falls back again,
-+      // runtime event bookkeeping flips the flag back on.
-+      if (rootSessionID === input.sessionID && agent) {
-+        const route = anthropicTaskFallbacks[agent];
-+        if (route) {
-+          clearRootAnthropicDegraded(
-+            rootSessionID,
-+            `root chat.message ${agent}`,
-+          );
-+        }
-+      }
-+
-       todoContinuationHook.handleChatMessage({
-         sessionID: input.sessionID,
-         agent,
-@@ -719,7 +1025,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
-       );
- 
-       // Collapse to single system message for provider compatibility.
--      // Some providers (e.g. Qwen3.5 via DashScope) reject multiple
-+      // Some providers (e.g. Qwen via VLLM/DashScope) reject multiple
-       // system messages. Sub-hooks above may push additional entries; join
-       // them back into one element so OpenCode emits a single system
-       // message.
 diff --git a/src/utils/merge-agent-config.test.ts b/src/utils/merge-agent-config.test.ts
 new file mode 100644
 index 0000000..c2dec99

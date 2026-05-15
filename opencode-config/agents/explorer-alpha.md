@@ -1,5 +1,5 @@
 ---
-description: "Codebase reconnaissance scout (best-of-N variant alpha). Identical methodology to @explorer with model gpt-5.4 medium reasoning."
+description: "Codebase reconnaissance scout (best-of-N variant alpha). Identical methodology to @explorer. Model configured in bridge JSON."
 mode: subagent
 hidden: true
 permission:

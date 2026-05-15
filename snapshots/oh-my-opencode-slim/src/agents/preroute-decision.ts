@@ -9,7 +9,12 @@ export interface TaskPrerouteContext {
   rootAgent: string | undefined;
   subagentType: string;
   taskId?: string;
+  // NOTE: lookupSessionAgent is only reachable via tests. In production
+  // (src/index.ts), it is never passed -- the session-resume preroute path
+  // (lines 31-57 below) is effectively dead code in the current architecture.
   lookupSessionAgent?: (sessionID: string) => Promise<string | undefined>;
+  // NOTE: anthropicTaskFallbacks is always {} in production. The rewrite
+  // path (lines 59-64) is unreachable without a non-empty fallback map.
   anthropicTaskFallbacks: Record<
     string,
     { shadowAgentName: string }

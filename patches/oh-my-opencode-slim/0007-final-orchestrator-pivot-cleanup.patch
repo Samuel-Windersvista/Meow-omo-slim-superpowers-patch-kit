@@ -1,19 +1,210 @@
 diff --git a/package.json b/package.json
-index 1162cc0..1142dc3 100644
+index f6cbd97..7238e41 100644
 --- a/package.json
 +++ b/package.json
-@@ -36,9 +36,10 @@
-     "LICENSE"
-   ],
-   "scripts": {
-+    "clean:dist": "bun run scripts/clean-dist.ts",
-     "build:plugin": "bun build src/index.ts --outdir dist --target node --format esm --external @ast-grep/napi --external @opencode-ai/plugin --external @opencode-ai/sdk --external jsdom --external zod",
-     "build:cli": "bun build src/cli/index.ts --outdir dist/cli --target node --format esm --external @ast-grep/napi --external @opencode-ai/plugin --external @opencode-ai/sdk --external jsdom --external zod",
--    "build": "bun run build:plugin && bun run build:cli && tsc --emitDeclarationOnly && bun run generate-schema",
-+    "build": "bun run clean:dist && bun run build:plugin && bun run build:cli && tsc --emitDeclarationOnly && bun run generate-schema",
-     "prepare": "bun run build",
-     "contributors:add": "all-contributors add",
-     "contributors:check": "all-contributors check",
+@@ -1,101 +1,102 @@
+-{
+-  "name": "oh-my-opencode-slim",
+-  "version": "1.1.0",
+-  "description": "Lightweight agent orchestration plugin for OpenCode - a slimmed-down fork of oh-my-opencode",
+-  "main": "dist/index.js",
+-  "types": "dist/index.d.ts",
+-  "exports": {
+-    ".": {
+-      "import": "./dist/index.js",
+-      "types": "./dist/index.d.ts"
+-    },
+-    "./tui": {
+-      "import": "./dist/tui.js",
+-      "types": "./dist/tui.d.ts"
+-    }
+-  },
+-  "bin": {
+-    "oh-my-opencode-slim": "./dist/cli/index.js"
+-  },
+-  "type": "module",
+-  "license": "MIT",
+-  "keywords": [
+-    "opencode",
+-    "opencode-plugin",
+-    "ai",
+-    "agents",
+-    "orchestration",
+-    "llm",
+-    "claude",
+-    "gpt",
+-    "gemini"
+-  ],
+-  "repository": {
+-    "type": "git",
+-    "url": "https://github.com/alvinunreal/oh-my-opencode-slim"
+-  },
+-  "bugs": {
+-    "url": "https://github.com/alvinunreal/oh-my-opencode-slim/issues"
+-  },
+-  "homepage": "https://github.com/alvinunreal/oh-my-opencode-slim#readme",
+-  "files": [
+-    "dist",
+-    "src/skills",
+-    "oh-my-opencode-slim.schema.json",
+-    "README.md",
+-    "LICENSE"
+-  ],
+-  "scripts": {
+-    "build:plugin": "bun build src/index.ts src/tui.ts --outdir dist --target node --format esm --external @ast-grep/napi --external @opencode-ai/plugin --external @opencode-ai/sdk --external @opentui/core --external @opentui/solid --external jsdom --external zod",
+-    "build:cli": "bun build src/cli/index.ts --outdir dist/cli --target node --format esm --external @ast-grep/napi --external @opencode-ai/plugin --external @opencode-ai/sdk --external jsdom --external zod",
+-    "copy:divoom-assets": "bun run scripts/copy-divoom-assets.ts",
+-    "build": "bun run build:plugin && bun run build:cli && bun run copy:divoom-assets && tsc --emitDeclarationOnly && bun run generate-schema",
+-    "prepare": "bun run build",
+-    "contributors:add": "all-contributors add",
+-    "contributors:check": "all-contributors check",
+-    "contributors:generate": "all-contributors generate",
+-    "generate-schema": "bun run scripts/generate-schema.ts",
+-    "verify:release": "bun run scripts/verify-release-artifact.ts",
+-    "verify:host-smoke": "bun run scripts/verify-opencode-host-smoke.ts",
+-    "typecheck": "tsc --noEmit",
+-    "test": "bun test",
+-    "lint": "biome lint .",
+-    "format": "biome format . --write",
+-    "check": "biome check --write .",
+-    "check:ci": "biome check .",
+-    "dev": "bun run build && opencode",
+-    "prepublishOnly": "bun run build",
+-    "release:patch": "npm version patch && git push --follow-tags && npm publish",
+-    "release:minor": "npm version minor && git push --follow-tags && npm publish",
+-    "release:major": "npm version major && git push --follow-tags && npm publish"
+-  },
+-  "dependencies": {
+-    "@ast-grep/cli": "^0.42.1",
+-    "@modelcontextprotocol/sdk": "^1.29.0",
+-    "@mozilla/readability": "^0.6.0",
+-    "@opencode-ai/plugin": "^1.3.17",
+-    "@opencode-ai/sdk": "^1.3.17",
+-    "jsdom": "^26.1.0",
+-    "lru-cache": "^11.3.3",
+-    "turndown": "^7.2.4"
+-  },
+-  "optionalDependencies": {
+-    "@opentui/solid": "^0.1.97"
+-  },
+-  "devDependencies": {
+-    "@biomejs/biome": "2.4.11",
+-    "@types/jsdom": "^21.1.7",
+-    "@types/node": "^24.6.1",
+-    "@types/turndown": "^5.0.6",
+-    "all-contributors-cli": "^6.26.1",
+-    "bun-types": "1.3.12",
+-    "typescript": "^5.9.3",
+-    "zod": "^4.3.6"
+-  },
+-  "peerDependencies": {
+-    "zod": "^4.0.0"
+-  },
+-  "trustedDependencies": [
+-    "@ast-grep/cli"
+-  ]
++锘縶
++    "name":  "oh-my-opencode-slim",
++    "version":  "1.1.0",
++    "description":  "Lightweight agent orchestration plugin for OpenCode - a slimmed-down fork of oh-my-opencode",
++    "main":  "dist/index.js",
++    "types":  "dist/index.d.ts",
++    "exports":  {
++                    ".":  {
++                              "import":  "./dist/index.js",
++                              "types":  "./dist/index.d.ts"
++                          },
++                    "./tui":  {
++                                  "import":  "./dist/tui.js",
++                                  "types":  "./dist/tui.d.ts"
++                              }
++                },
++    "bin":  {
++                "oh-my-opencode-slim":  "./dist/cli/index.js"
++            },
++    "type":  "module",
++    "license":  "MIT",
++    "keywords":  [
++                     "opencode",
++                     "opencode-plugin",
++                     "ai",
++                     "agents",
++                     "orchestration",
++                     "llm",
++                     "claude",
++                     "gpt",
++                     "gemini"
++                 ],
++    "repository":  {
++                       "type":  "git",
++                       "url":  "https://github.com/alvinunreal/oh-my-opencode-slim"
++                   },
++    "bugs":  {
++                 "url":  "https://github.com/alvinunreal/oh-my-opencode-slim/issues"
++             },
++    "homepage":  "https://github.com/alvinunreal/oh-my-opencode-slim#readme",
++    "files":  [
++                  "dist",
++                  "src/skills",
++                  "oh-my-opencode-slim.schema.json",
++                  "README.md",
++                  "LICENSE"
++              ],
++    "scripts":  {
++                    "build:plugin":  "bun build src/index.ts src/tui.ts --outdir dist --target node --format esm --external @ast-grep/napi --external @opencode-ai/plugin --external @opencode-ai/sdk --external @opentui/core --external @opentui/solid --external jsdom --external zod",
++                    "build:cli":  "bun build src/cli/index.ts --outdir dist/cli --target node --format esm --external @ast-grep/napi --external @opencode-ai/plugin --external @opencode-ai/sdk --external jsdom --external zod",
++                    "copy:divoom-assets":  "bun run scripts/copy-divoom-assets.ts",
++                    "build":  "bun run clean:dist \u0026\u0026 bun run build:plugin \u0026\u0026 bun run build:cli \u0026\u0026 bun run copy:divoom-assets \u0026\u0026 tsc --emitDeclarationOnly \u0026\u0026 bun run generate-schema",
++                    "prepare":  "bun run build",
++                    "contributors:add":  "all-contributors add",
++                    "contributors:check":  "all-contributors check",
++                    "contributors:generate":  "all-contributors generate",
++                    "generate-schema":  "bun run scripts/generate-schema.ts",
++                    "verify:release":  "bun run scripts/verify-release-artifact.ts",
++                    "verify:host-smoke":  "bun run scripts/verify-opencode-host-smoke.ts",
++                    "typecheck":  "tsc --noEmit",
++                    "test":  "bun test",
++                    "lint":  "biome lint .",
++                    "format":  "biome format . --write",
++                    "check":  "biome check --write .",
++                    "check:ci":  "biome check .",
++                    "dev":  "bun run build \u0026\u0026 opencode",
++                    "prepublishOnly":  "bun run build",
++                    "release:patch":  "npm version patch \u0026\u0026 git push --follow-tags \u0026\u0026 npm publish",
++                    "release:minor":  "npm version minor \u0026\u0026 git push --follow-tags \u0026\u0026 npm publish",
++                    "release:major":  "npm version major \u0026\u0026 git push --follow-tags \u0026\u0026 npm publish",
++                    "clean:dist":  "bun run scripts/clean-dist.ts"
++                },
++    "dependencies":  {
++                         "@ast-grep/cli":  "^0.42.1",
++                         "@modelcontextprotocol/sdk":  "^1.29.0",
++                         "@mozilla/readability":  "^0.6.0",
++                         "@opencode-ai/plugin":  "^1.3.17",
++                         "@opencode-ai/sdk":  "^1.3.17",
++                         "jsdom":  "^26.1.0",
++                         "lru-cache":  "^11.3.3",
++                         "turndown":  "^7.2.4"
++                     },
++    "optionalDependencies":  {
++                                 "@opentui/solid":  "^0.1.97"
++                             },
++    "devDependencies":  {
++                            "@biomejs/biome":  "2.4.11",
++                            "@types/jsdom":  "^21.1.7",
++                            "@types/node":  "^24.6.1",
++                            "@types/turndown":  "^5.0.6",
++                            "all-contributors-cli":  "^6.26.1",
++                            "bun-types":  "1.3.12",
++                            "typescript":  "^5.9.3",
++                            "zod":  "^4.3.6"
++                        },
++    "peerDependencies":  {
++                             "zod":  "^4.0.0"
++                         },
++    "trustedDependencies":  [
++                                "@ast-grep/cli"
++                            ]
+ }
 diff --git a/scripts/build-cleanliness.test.ts b/scripts/build-cleanliness.test.ts
 new file mode 100644
 index 0000000..448e369
@@ -140,74 +331,41 @@ index 0000000..4ca8b5c
 +
 +  return { action: 'rewrite', newSubagentType: route.shadowAgentName };
 +}
-diff --git a/src/config/orchestrator-only-skills.test.ts b/src/config/orchestrator-only-skills.test.ts
-index 3ad77d0..069b53a 100644
---- a/src/config/orchestrator-only-skills.test.ts
-+++ b/src/config/orchestrator-only-skills.test.ts
-@@ -22,6 +22,11 @@ describe('isReservedSkillAllowed', () => {
-     expect(isReservedSkillAllowed('orchestrator-beta')).toBe(true);
-   });
- 
-+
-+  test('orchestrator-delta is allowed', () => {
-+    expect(isReservedSkillAllowed('orchestrator-delta')).toBe(true);
-+  });
-+
-   test('fixer is denied', () => {
-     expect(isReservedSkillAllowed('fixer')).toBe(false);
-   });
-diff --git a/src/config/orchestrator-only-skills.ts b/src/config/orchestrator-only-skills.ts
-index c36766d..63aca92 100644
---- a/src/config/orchestrator-only-skills.ts
-+++ b/src/config/orchestrator-only-skills.ts
-@@ -1,5 +1,5 @@
- /**
-- * Skills that may only be invoked by `orchestrator` and `orchestrator-beta`.
-+ * Skills that may only be invoked by manual root orchestrators.
-  *
-  * For all other agents, these skill names are explicitly denied —
-  * regardless of the agent's non-SP `* allow` / `* deny`
-@@ -15,9 +15,14 @@ export const RESERVED_ORCHESTRATOR_ONLY_SKILLS: ReadonlyArray<string> = [
- 
- /**
-  * Return `true` if the given agent is permitted to invoke reserved
-- * orchestrator-only skills. Currently: `orchestrator` + `orchestrator-beta`
-- * only. Variant agents (e.g. `fixer-alpha`) do NOT inherit this access.
-+ * orchestrator-only skills. Currently: `orchestrator`, `orchestrator-beta`,
-+ * and manual non-fallback GPT root `orchestrator-delta` only. Variant agents
-+ * (e.g. `fixer-alpha`) do NOT inherit this access.
-  */
- export function isReservedSkillAllowed(agentName: string): boolean {
--  return agentName === 'orchestrator' || agentName === 'orchestrator-beta';
-+  return (
-+    agentName === 'orchestrator' ||
-+    agentName === 'orchestrator-beta' ||
-+    agentName === 'orchestrator-delta'
-+  );
- }
 diff --git a/src/hooks/foreground-fallback/codemap.md b/src/hooks/foreground-fallback/codemap.md
-index bf2e6b1..37d5595 100644
+index 5f601fd..37d5595 100644
 --- a/src/hooks/foreground-fallback/codemap.md
 +++ b/src/hooks/foreground-fallback/codemap.md
-@@ -3,7 +3,8 @@
+@@ -3,52 +3,74 @@
  ## Responsibility
  
  Provides reactive model fallback for foreground (interactive) sessions when
--runtime rate-limit indicators are observed.
+-rate-limit or provider-limit signals are observed in event streams.
 +OpenCode reports a retryable/rate-limited run at runtime. It is a safety net
 +for limits that startup-time model selection could not avoid.
  
  ## Design
  
-@@ -14,34 +15,54 @@ runtime rate-limit indicators are observed.
+ - `index.ts` exports:
+   - `ForegroundFallbackManager`
+   - `isRateLimitError(error)`
+-- Manager state is per-session maps for:
++- Manager state is session-scoped maps for:
    - active model (`sessionModel`)
    - mapped agent (`sessionAgent`)
    - attempted models (`sessionTried`)
 +  - task/subagent child sessions (`childSessions`)
    - dedupe timestamp (`lastTrigger`)
    - in-flight fallback lock (`inProgress`)
--- Rate-limit detection uses fixed regexes over message/error text and response
--  metadata (`statusCode`, `message`, `responseBody`).
+-- Rate-limit detection is regex based and also checks structured payload fields
+-  (`message`, `statusCode`, `data.message`, `data.responseBody`).
+-- Fallback selection uses `resolveChain(agentName, currentModel)` with ordered
+-  priority:
+-  1. exact agent chain (if configured)
+-  2. no-chain if agent is known but unconfigured
+-  3. infer from current model
+-  4. flattened fallback across all chains
+-- Re-submission uses `client.session.promptAsync` with last-user message parts and
+-  parsed `{ providerID, modelID }` target.
 +- It also owns a persistent cooldown store. Anthropic reset headers from
 +  structured API errors are captured and used as soft skip hints during chain
 +  walking.
@@ -220,33 +378,32 @@ index bf2e6b1..37d5595 100644
 +- Foreground sessions whose known agent is the literal `orchestrator` take a
 +  one-shot pivot path instead of chain walking: `orchestrator` ->
 +  `orchestrator-beta` on `gauge-forge-openai/gpt-5.4`.
- - Fallback selection is deterministic via `resolveChain(agentName, currentModel)`:
-   1. exact agent chain (if known)
--  2. no fallback if agent known but unconfigured
++- Fallback selection is deterministic via `resolveChain(agentName, currentModel)`:
++  1. exact agent chain (if known)
 +  2. no fallback if agent is known but unconfigured
-   3. infer chain from current model
-   4. deduplicated flattening of all chains as fallback.
++  3. infer chain from current model
++  4. deduplicated flattening of all chains as fallback.
 +- Known agents do not bleed into other agents' chains. This means known child
 +  agents can still no-op when no chain entry exists for that agent.
  
  ## Flow
  
- 1. `handleEvent` receives each OpenCode event from the plugin’s global event
-    surface.
--2. On `message.updated`, `session.error`, or retry `session.status`, the
--   manager checks for rate-limit signatures.
--3. When matched, `tryFallback(sessionID)` runs with guards:
--   - disabled feature toggle,
--   - in-progress lock,
+-1. `handleEvent` receives each plugin event.
+-2. On `message.updated`, `session.error`, and retry `session.status`, it checks
+-   rate-limit markers and calls `tryFallback(sessionID)` when matched.
+-3. `subagent.session.created` updates session-to-agent mappings for better chain
+-   resolution.
+-4. `tryFallback(sessionID)` enforces:
+-   - feature enablement flag,
+-   - one-at-a-time lock,
 -   - dedupe window (`DEDUP_WINDOW_MS = 5000`).
--4. It resolves the chain, marks the current model as tried, and selects the next
--   untried model.
--5. It fetches messages, finds the last user turn, aborts the current session,
--   waits briefly (500ms), then reissues that user parts using `session.promptAsync`
--   with a parsed `{ providerID, modelID }`.
--6. On success it updates `sessionModel`; on failures, logs structured fallback
--   errors.
--7. On `session.deleted`, all per-session maps are removed to prevent memory
+-5. It marks current model attempted, chooses next untried model from the chain,
+-   fetches latest user message via `session.messages`, aborts the active prompt via
+-   `session.abort()`, waits 500ms, and re-prompts with `promptAsync`.
+-6. Success updates session model memory; failures log structured diagnostics.
+-7. `session.deleted` cleanup removes all per-session bookkeeping to avoid memory
++1. `handleEvent` receives each OpenCode event from the plugin鈥檚 global event
++   surface.
 +2. `session.created` and `subagent.session.created` mark child sessions; child
 +   sessions are pre-routed elsewhere and mid-flight fallback is deliberately
 +   disabled here to avoid racing parent/task completion.
@@ -261,7 +418,7 @@ index bf2e6b1..37d5595 100644
 +   `session.promptAsync` using `agent: 'orchestrator-beta'` and model
 +   `gauge-forge-openai/gpt-5.4`. It updates both session identity and model.
 +6. Chain walking uses guards (in-progress lock and 5000ms dedupe), resolves the
-+   session’s chain, marks the current model as tried, prefers an untried model
++   session鈥檚 chain, marks the current model as tried, prefers an untried model
 +   not currently cooling down, aborts foreground sessions, and replays the last
 +   user turn with the selected model. Foreground replay is non-blocking via
 +   `promptAsync`.
@@ -271,871 +428,24 @@ index bf2e6b1..37d5595 100644
     growth.
  
  ## Integration
-@@ -49,5 +70,7 @@ runtime rate-limit indicators are observed.
- - Wired via plugin-level `event` hook in `src/index.ts`.
- - Uses `ctx.client.session` APIs (`messages`, `abort`, `promptAsync`) and is
-   independent of delegation/council logic.
--- Intended as a runtime safety net when startup-time model selection cannot avoid
--  transient provider limits.
+ 
+-- Wired through plugin-level `event` hook in `src/index.ts`.
+-- Uses `ctx.client.session` APIs (`messages`, `abort`, `promptAsync`) and
+-  depends on runtime fallback chains provided from configuration.
+-- Designed as an interactive-session safety net when delegated/caller-side retry
+-  logic is unavailable or too late.
++- Wired via plugin-level `event` hook in `src/index.ts`.
++- Uses `ctx.client.session` APIs (`messages`, `abort`, `promptAsync`) and is
++  independent of delegation/council logic.
 +- The constructor receives a plugin-level root identity sync callback. After the
 +  orchestrator pivot, the manager calls it so the shared `sessionAgentMap` also
 +  records `orchestrator-beta`; later plugin logic, including root-aware subagent
 +  routing, sees the pivoted identity.
-diff --git a/src/hooks/foreground-fallback/index.test.ts b/src/hooks/foreground-fallback/index.test.ts
-index 73b74a2..bd674b1 100644
---- a/src/hooks/foreground-fallback/index.test.ts
-+++ b/src/hooks/foreground-fallback/index.test.ts
-@@ -18,6 +18,7 @@ function createMockClient(overrides?: {
-     return {};
-   });
-   const abort = mock(async () => ({}));
-+  const prompt = mock(async (_args: unknown) => ({}));
-   const messages = mock(async () => ({
-     data: overrides?.messagesData ?? [
-       { info: { role: 'user' }, parts: [{ type: 'text', text: 'hello' }] },
-@@ -28,12 +29,13 @@ function createMockClient(overrides?: {
-     client: {
-       session: {
-         abort,
-+        prompt,
-         messages,
--        // promptAsync is cast at runtime — expose via the session object
-+        // prompt/promptAsync are cast at runtime — expose via the session object
-         promptAsync,
-       },
-     } as unknown as Parameters<typeof ForegroundFallbackManager>[0],
--    mocks: { promptAsync, abort, messages },
-+    mocks: { promptAsync, prompt, abort, messages },
-   };
- }
- 
-@@ -46,6 +48,11 @@ function makeChains(
-       'openai/gpt-4o',
-       'google/gemini-2.5-pro',
-     ],
-+    librarian: [
-+      'anthropic/claude-opus-4-5',
-+      'openai/gpt-4o',
-+      'google/gemini-2.5-pro',
-+    ],
-     explorer: ['openai/gpt-4o-mini', 'anthropic/claude-haiku'],
-     ...overrides,
-   };
-@@ -56,30 +63,24 @@ function makeChains(
- // ---------------------------------------------------------------------------
- 
- describe('isRateLimitError', () => {
--  test('returns true for 429 status code', () => {
--    expect(isRateLimitError({ data: { statusCode: 429 } })).toBe(true);
-+  test('returns true for explicit isRetryable APIError', () => {
-+    expect(isRateLimitError({ data: { isRetryable: true } })).toBe(true);
-   });
- 
--  test('returns true for "rate limit" in message', () => {
--    expect(isRateLimitError({ message: 'Rate limit exceeded' })).toBe(true);
-+  test('returns true for 429 status code even if isRetryable is absent', () => {
-+    expect(isRateLimitError({ data: { statusCode: 429 } })).toBe(true);
-   });
- 
--  test('returns true for "quota exceeded" in responseBody', () => {
--    expect(isRateLimitError({ data: { responseBody: 'quota exceeded' } })).toBe(
-+  test('unwraps one-level error wrapper', () => {
-+    expect(isRateLimitError({ error: { data: { isRetryable: true } } })).toBe(
-       true,
-     );
-   });
- 
--  test('returns true for "usage exceeded"', () => {
--    expect(isRateLimitError({ message: 'usage exceeded' })).toBe(true);
--  });
--
--  test('returns true for "overloaded"', () => {
--    expect(isRateLimitError({ message: 'overloaded_error' })).toBe(true);
--  });
--
--  test('returns false for non-rate-limit error', () => {
--    expect(isRateLimitError({ message: 'invalid API key' })).toBe(false);
-+  test('returns false for non-retryable APIError', () => {
-+    expect(
-+      isRateLimitError({ data: { isRetryable: false, statusCode: 400 } }),
-+    ).toBe(false);
-   });
- 
-   test('returns false for null', () => {
-@@ -104,7 +105,7 @@ describe('ForegroundFallbackManager (disabled)', () => {
-       type: 'session.error',
-       properties: {
-         sessionID: 'sess-1',
--        error: { message: 'rate limit exceeded' },
-+        error: { data: { isRetryable: true } },
-       },
-     });
- 
-@@ -144,17 +145,21 @@ describe('ForegroundFallbackManager session.error', () => {
-       type: 'session.error',
-       properties: {
-         sessionID: 'sess-1',
--        error: { message: 'Rate limit exceeded' },
-+        error: { data: { isRetryable: true } },
-       },
-     });
- 
-     expect(mocks.abort).toHaveBeenCalledTimes(1);
-     expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
-+    expect(mocks.prompt).not.toHaveBeenCalled();
- 
-     const call = mocks.promptAsync.mock.calls[0] as [
-       {
-         path: { id: string };
--        body: { model: { providerID: string; modelID: string } };
-+        body: {
-+          agent?: string;
-+          model: { providerID: string; modelID: string };
-+        };
-       },
-     ];
-     expect(call[0].path.id).toBe('sess-1');
-@@ -181,7 +186,7 @@ describe('ForegroundFallbackManager session.error', () => {
-       type: 'session.error',
-       properties: {
-         sessionID: 'sess-1',
--        error: { message: 'rate limit exceeded' },
-+        error: { data: { isRetryable: true } },
-       },
-     });
- 
-@@ -189,6 +194,98 @@ describe('ForegroundFallbackManager session.error', () => {
-   });
- });
- 
-+describe('ForegroundFallbackManager replay contract', () => {
-+  test('preserves agent name on foreground replay via promptAsync', async () => {
-+    const { client, mocks } = createMockClient();
-+    const mgr = new ForegroundFallbackManager(client, makeChains(), true);
-+
-+    await mgr.handleEvent({
-+      type: 'message.updated',
-+      properties: {
-+        info: {
-+          sessionID: 'sess-agent-preserve',
-+          agent: 'librarian',
-+          providerID: 'anthropic',
-+          modelID: 'claude-opus-4-5',
-+        },
-+      },
-+    });
-+
-+    await mgr.handleEvent({
-+      type: 'session.error',
-+      properties: {
-+        sessionID: 'sess-agent-preserve',
-+        error: { data: { isRetryable: true } },
-+      },
-+    });
-+
-+    expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
-+    expect(mocks.prompt).not.toHaveBeenCalled();
-+    const call = mocks.promptAsync.mock.calls[0] as [
-+      {
-+        body: {
-+          agent?: string;
-+          model: { providerID: string; modelID: string };
-+        };
-+      },
-+    ];
-+    expect(call[0].body.agent).toBe('librarian');
-+    expect(call[0].body.model.providerID).toBe('openai');
-+    expect(call[0].body.model.modelID).toBe('gpt-4o');
-+  });
-+
-+  test('does not perform mid-flight fallback for task-owned child sessions', async () => {
-+    const { client, mocks } = createMockClient();
-+    const mgr = new ForegroundFallbackManager(
-+      client,
-+      makeChains({
-+        librarian: ['anthropic/claude-opus-4-5', 'openai/gpt-4o'],
-+      }),
-+      true,
-+    );
-+
-+    await mgr.handleEvent({
-+      type: 'session.created',
-+      properties: {
-+        sessionID: 'child-1',
-+        info: { id: 'child-1', parentID: 'parent-1' },
-+      },
-+    });
-+    await mgr.handleEvent({
-+      type: 'subagent.session.created',
-+      properties: { sessionID: 'child-1', agentName: 'librarian' },
-+    });
-+    await mgr.handleEvent({
-+      type: 'message.updated',
-+      properties: {
-+        info: {
-+          sessionID: 'child-1',
-+          agent: 'librarian',
-+          providerID: 'anthropic',
-+          modelID: 'claude-opus-4-5',
-+        },
-+      },
-+    });
-+
-+    await mgr.handleEvent({
-+      type: 'session.status',
-+      properties: {
-+        sessionID: 'child-1',
-+        status: {
-+          type: 'retry',
-+          attempt: 3,
-+          message: 'whatever',
-+          next: Date.now() + 5000,
-+        },
-+      },
-+    });
-+
-+    expect(mocks.abort).not.toHaveBeenCalled();
-+    expect(mocks.prompt).not.toHaveBeenCalled();
-+    expect(mocks.promptAsync).not.toHaveBeenCalled();
-+  });
-+});
-+
- // ---------------------------------------------------------------------------
- // ForegroundFallbackManager — message.updated
- // ---------------------------------------------------------------------------
-@@ -205,19 +302,13 @@ describe('ForegroundFallbackManager message.updated', () => {
-           sessionID: 'sess-2',
-           providerID: 'anthropic',
-           modelID: 'claude-opus-4-5',
--          error: { message: 'rate limit exceeded' },
-+          error: { data: { isRetryable: true } },
-         },
-       },
-     });
- 
-     expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
--    const call = mocks.promptAsync.mock.calls[0] as [
--      {
--        body: { model: { providerID: string; modelID: string } };
--      },
--    ];
--    expect(call[0].body.model.providerID).toBe('openai');
--    expect(call[0].body.model.modelID).toBe('gpt-4o');
-+    expect(mocks.prompt).not.toHaveBeenCalled();
-   });
- 
-   test('uses agent name from message.updated to select correct chain', async () => {
-@@ -233,15 +324,19 @@ describe('ForegroundFallbackManager message.updated', () => {
-           agent: 'explorer',
-           providerID: 'openai',
-           modelID: 'gpt-4o-mini',
--          error: { message: 'quota exceeded' },
-+          error: { data: { isRetryable: true } },
-         },
-       },
-     });
- 
-     expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
-+    expect(mocks.prompt).not.toHaveBeenCalled();
-     const call = mocks.promptAsync.mock.calls[0] as [
-       {
--        body: { model: { providerID: string; modelID: string } };
-+        body: {
-+          agent?: string;
-+          model: { providerID: string; modelID: string };
-+        };
-       },
-     ];
-     // explorer chain: ['openai/gpt-4o-mini', 'anthropic/claude-haiku']
-@@ -281,9 +376,92 @@ describe('ForegroundFallbackManager session.status', () => {
-     });
- 
-     expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
-+    expect(mocks.prompt).not.toHaveBeenCalled();
-   });
- 
--  test('ignores session.status with non-rate-limit retry message', async () => {
-+  test('triggers fallback on retry status with overloaded provider message', async () => {
-+    const { client, mocks } = createMockClient();
-+    const mgr = new ForegroundFallbackManager(client, makeChains(), true);
-+
-+    // Pre-seed model
-+    await mgr.handleEvent({
-+      type: 'message.updated',
-+      properties: {
-+        info: {
-+          sessionID: 'sess-4-overloaded',
-+          providerID: 'anthropic',
-+          modelID: 'claude-opus-4-5',
-+        },
-+      },
-+    });
-+
-+    await mgr.handleEvent({
-+      type: 'session.status',
-+      properties: {
-+        sessionID: 'sess-4-overloaded',
-+        status: {
-+          type: 'retry',
-+          message: 'Provider is overloaded. Retrying in 2s',
-+        },
-+      },
-+    });
-+
-+    expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
-+    expect(mocks.prompt).not.toHaveBeenCalled();
-+    const call = mocks.promptAsync.mock.calls[0] as [
-+      {
-+        body: {
-+          agent?: string;
-+          model: { providerID: string; modelID: string };
-+        };
-+      },
-+    ];
-+    expect(call[0].body.model.providerID).toBe('openai');
-+    expect(call[0].body.model.modelID).toBe('gpt-4o');
-+  });
-+
-+  test('triggers fallback on retry status with no-available-Claude-accounts message', async () => {
-+    const { client, mocks } = createMockClient();
-+    const mgr = new ForegroundFallbackManager(client, makeChains(), true);
-+
-+    // Pre-seed model
-+    await mgr.handleEvent({
-+      type: 'message.updated',
-+      properties: {
-+        info: {
-+          sessionID: 'sess-4-no-accounts',
-+          providerID: 'anthropic',
-+          modelID: 'claude-opus-4-5',
-+        },
-+      },
-+    });
-+
-+    await mgr.handleEvent({
-+      type: 'session.status',
-+      properties: {
-+        sessionID: 'sess-4-no-accounts',
-+        status: {
-+          type: 'retry',
-+          message:
-+            'Internal Server Error: No available Claude accounts support the requested model: claude-opus-4-5. Retrying in 5s attempt #3',
-+        },
-+      },
-+    });
-+
-+    expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
-+    expect(mocks.prompt).not.toHaveBeenCalled();
-+    const call = mocks.promptAsync.mock.calls[0] as [
-+      {
-+        body: {
-+          agent?: string;
-+          model: { providerID: string; modelID: string };
-+        };
-+      },
-+    ];
-+    expect(call[0].body.model.providerID).toBe('openai');
-+    expect(call[0].body.model.modelID).toBe('gpt-4o');
-+  });
-+  test('ignores session.status when status.type is not retry', async () => {
-     const { client, mocks } = createMockClient();
-     const mgr = new ForegroundFallbackManager(client, makeChains(), true);
- 
-@@ -291,7 +469,7 @@ describe('ForegroundFallbackManager session.status', () => {
-       type: 'session.status',
-       properties: {
-         sessionID: 'sess-4',
--        status: { type: 'retry', message: 'connection timeout, retrying...' },
-+        status: { type: 'busy', message: 'connection timeout, retrying...' },
-       },
-     });
- 
-@@ -329,7 +507,7 @@ describe('ForegroundFallbackManager chain exhaustion', () => {
-     // Rate limit fires — only model in chain is already current → nothing to fall back to
-     await mgr.handleEvent({
-       type: 'session.error',
--      properties: { sessionID: 's', error: { message: 'rate limit exceeded' } },
-+      properties: { sessionID: 's', error: { data: { isRetryable: true } } },
-     });
- 
-     expect(mocks.promptAsync).not.toHaveBeenCalled();
-@@ -347,7 +525,7 @@ describe('ForegroundFallbackManager chain exhaustion', () => {
-     const chain = ['openai/model-x', 'openai/model-y'];
-     const mgr = new ForegroundFallbackManager(
-       client,
--      { orchestrator: chain },
-+      { librarian: chain },
-       true,
-     );
- 
-@@ -357,21 +535,22 @@ describe('ForegroundFallbackManager chain exhaustion', () => {
-       properties: {
-         info: {
-           sessionID: 'sess-exhaust',
--          agent: 'orchestrator',
-+          agent: 'librarian',
-           providerID: 'openai',
-           modelID: 'model-x',
--          error: { message: 'rate limit exceeded' },
-+          error: { data: { isRetryable: true } },
-         },
-       },
-     });
-     expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
-+    expect(mocks.prompt).not.toHaveBeenCalled();
- 
-     // Session B (fresh session, different ID): only model-y is in chain and it IS
-     // the current model → tried gets model-y → chain.find() = undefined → exhausted
-     const { client: client2, mocks: mocks2 } = createMockClient();
-     const mgr2 = new ForegroundFallbackManager(
-       client2,
--      { orchestrator: ['openai/model-y'] }, // single-entry chain already in use
-+      { librarian: ['openai/model-y'] }, // single-entry chain already in use
-       true,
-     );
-     await mgr2.handleEvent({
-@@ -379,10 +558,10 @@ describe('ForegroundFallbackManager chain exhaustion', () => {
-       properties: {
-         info: {
-           sessionID: 'sess-exhaust-2',
--          agent: 'orchestrator',
-+          agent: 'librarian',
-           providerID: 'openai',
-           modelID: 'model-y',
--          error: { message: 'rate limit exceeded' },
-+          error: { data: { isRetryable: true } },
-         },
-       },
-     });
-@@ -403,7 +582,7 @@ describe('ForegroundFallbackManager deduplication', () => {
-       type: 'session.error',
-       properties: {
-         sessionID: 'sess-dup',
--        error: { message: 'rate limit exceeded' },
-+        error: { data: { isRetryable: true } },
-       },
-     };
- 
-@@ -411,6 +590,7 @@ describe('ForegroundFallbackManager deduplication', () => {
-     await mgr.handleEvent(event); // immediate second trigger — should be deduped
- 
-     expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
-+    expect(mocks.prompt).not.toHaveBeenCalled();
-   });
- 
-   test('different sessions are not deduplicated against each other', async () => {
-@@ -419,11 +599,17 @@ describe('ForegroundFallbackManager deduplication', () => {
- 
-     await mgr.handleEvent({
-       type: 'session.error',
--      properties: { sessionID: 'sess-A', error: { message: 'rate limit' } },
-+      properties: {
-+        sessionID: 'sess-A',
-+        error: { data: { isRetryable: true } },
-+      },
-     });
-     await mgr.handleEvent({
-       type: 'session.error',
--      properties: { sessionID: 'sess-B', error: { message: 'rate limit' } },
-+      properties: {
-+        sessionID: 'sess-B',
-+        error: { data: { isRetryable: true } },
-+      },
-     });
- 
-     expect(mocks.promptAsync).toHaveBeenCalledTimes(2);
-@@ -435,7 +621,7 @@ describe('ForegroundFallbackManager deduplication', () => {
- // ---------------------------------------------------------------------------
- 
- describe('ForegroundFallbackManager subagent.session.created', () => {
--  test('records agent name from subagent.session.created when agentName provided', async () => {
-+  test('tracks child agent identity but does not perform mid-flight fallback', async () => {
-     const { client, mocks } = createMockClient();
-     const mgr = new ForegroundFallbackManager(client, makeChains(), true);
- 
-@@ -448,19 +634,14 @@ describe('ForegroundFallbackManager subagent.session.created', () => {
-     // Now trigger rate limit — should use explorer's chain
-     await mgr.handleEvent({
-       type: 'session.error',
--      properties: { sessionID: 'sub-1', error: { message: 'rate limit' } },
-+      properties: {
-+        sessionID: 'sub-1',
-+        error: { data: { isRetryable: true } },
-+      },
-     });
- 
--    expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
--    const call = mocks.promptAsync.mock.calls[0] as [
--      {
--        body: { model: { providerID: string; modelID: string } };
--      },
--    ];
--    // explorer chain: ['openai/gpt-4o-mini', 'anthropic/claude-haiku']
--    // no current model tracked → first untried = openai/gpt-4o-mini
--    expect(call[0].body.model.providerID).toBe('openai');
--    expect(call[0].body.model.modelID).toBe('gpt-4o-mini');
-+    expect(mocks.prompt).not.toHaveBeenCalled();
-+    expect(mocks.promptAsync).not.toHaveBeenCalled();
-   });
- });
- 
-@@ -498,13 +679,14 @@ describe('ForegroundFallbackManager session.deleted', () => {
-       type: 'session.error',
-       properties: {
-         sessionID: 'sess-del',
--        error: { message: 'rate limit exceeded' },
-+        error: { data: { isRetryable: true } },
-       },
-     });
- 
-     // Should have triggered (dedup was cleared by session.deleted)
-     // and should pick the first chain model (no current model seed after deletion)
-     expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
-+    expect(mocks.prompt).not.toHaveBeenCalled();
-     const call = mocks.promptAsync.mock.calls[0] as [
-       { body: { model: { providerID: string; modelID: string } } },
-     ];
-@@ -553,12 +735,13 @@ describe('ForegroundFallbackManager session.deleted', () => {
-       type: 'session.error',
-       properties: {
-         sessionID: 'sess-info-del',
--        error: { message: 'rate limit exceeded' },
-+        error: { data: { isRetryable: true } },
-       },
-     });
- 
-     // Triggered (dedup was cleared by deletion)
-     expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
-+    expect(mocks.prompt).not.toHaveBeenCalled();
-   });
- });
- 
-@@ -589,7 +772,7 @@ describe('ForegroundFallbackManager resolveChain cross-agent isolation', () => {
-           agent: 'oracle', // agent IS known
-           providerID: 'anthropic',
-           modelID: 'claude-opus-4-5',
--          error: { message: 'rate limit exceeded' },
-+          error: { data: { isRetryable: true } },
-         },
-       },
-     });
-@@ -613,12 +796,13 @@ describe('ForegroundFallbackManager resolveChain cross-agent isolation', () => {
-       type: 'session.error',
-       properties: {
-         sessionID: 'unknown-agent-sess',
--        error: { message: 'rate limit exceeded' },
-+        error: { data: { isRetryable: true } },
-       },
-     });
- 
-     // Falls through to last-resort → picks first model from any chain
-     expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
-+    expect(mocks.prompt).not.toHaveBeenCalled();
-     const call = mocks.promptAsync.mock.calls[0] as [
-       { body: { model: { providerID: string; modelID: string } } },
-     ];
-@@ -644,7 +828,7 @@ describe('ForegroundFallbackManager Anthropic cooldown integration', () => {
- 
-   function makeManagerWithStore(
-     chains: Record<string, string[]> = {
--      orchestrator: ['anthropic/claude-opus-4-7', 'openai/gpt-5.4'],
-+      librarian: ['anthropic/claude-opus-4-7', 'openai/gpt-5.4'],
-     },
-   ) {
-     const store = createCooldownStore({
-@@ -653,7 +837,12 @@ describe('ForegroundFallbackManager Anthropic cooldown integration', () => {
-     });
-     const { client, mocks } = createMockClient();
-     const mgr = new ForegroundFallbackManager(client, chains, true, store);
--    return { mgr, mocks, store, cleanup: () => rmSync(tmp, { recursive: true, force: true }) };
-+    return {
-+      mgr,
-+      mocks,
-+      store,
-+      cleanup: () => rmSync(tmp, { recursive: true, force: true }),
-+    };
-   }
- 
-   test('captures cooldown from anthropic-ratelimit-*-reset headers on session.error', async () => {
-@@ -682,7 +871,9 @@ describe('ForegroundFallbackManager Anthropic cooldown integration', () => {
-             data: {
-               statusCode: 429,
-               responseHeaders: {
--                'anthropic-ratelimit-requests-reset': new Date(resetEpochMs).toISOString(),
-+                'anthropic-ratelimit-requests-reset': new Date(
-+                  resetEpochMs,
-+                ).toISOString(),
-               },
-             },
-           },
-@@ -697,7 +888,7 @@ describe('ForegroundFallbackManager Anthropic cooldown integration', () => {
- 
-   test('skips cooled-down models when picking next fallback', async () => {
-     const { mgr, mocks, store, cleanup } = makeManagerWithStore({
--      orchestrator: [
-+      librarian: [
-         'anthropic/claude-opus-4-7',
-         'openai/gpt-5.4',
-         'google/gemini-2.5-pro',
-@@ -714,7 +905,7 @@ describe('ForegroundFallbackManager Anthropic cooldown integration', () => {
-         properties: {
-           info: {
-             sessionID: 'sess-skip',
--            agent: 'orchestrator',
-+            agent: 'librarian',
-             providerID: 'anthropic',
-             modelID: 'claude-opus-4-7',
-           },
-@@ -726,12 +917,13 @@ describe('ForegroundFallbackManager Anthropic cooldown integration', () => {
-         type: 'session.error',
-         properties: {
-           sessionID: 'sess-skip',
--          error: { message: 'rate limit exceeded' },
-+          error: { data: { isRetryable: true } },
-         },
-       });
- 
-       // Should have picked gemini-2.5-pro (skipping opus and gpt-5.4 due to cooldown)
-       expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
-+      expect(mocks.prompt).not.toHaveBeenCalled();
-       const call = mocks.promptAsync.mock.calls[0] as [
-         { body: { model: { providerID: string; modelID: string } } },
-       ];
-@@ -744,7 +936,7 @@ describe('ForegroundFallbackManager Anthropic cooldown integration', () => {
- 
-   test('falls back to first untried when all models are cooling down', async () => {
-     const { mgr, mocks, store, cleanup } = makeManagerWithStore({
--      orchestrator: ['anthropic/claude-opus-4-7', 'openai/gpt-5.4'],
-+      librarian: ['anthropic/claude-opus-4-7', 'openai/gpt-5.4'],
-     });
-     try {
-       // Cool down BOTH models in chain
-@@ -756,7 +948,7 @@ describe('ForegroundFallbackManager Anthropic cooldown integration', () => {
-         properties: {
-           info: {
-             sessionID: 'sess-all-cool',
--            agent: 'orchestrator',
-+            agent: 'librarian',
-             providerID: 'anthropic',
-             modelID: 'claude-opus-4-7',
-           },
-@@ -767,7 +959,7 @@ describe('ForegroundFallbackManager Anthropic cooldown integration', () => {
-         type: 'session.error',
-         properties: {
-           sessionID: 'sess-all-cool',
--          error: { message: 'rate limit exceeded' },
-+          error: { data: { isRetryable: true } },
-         },
-       });
- 
-@@ -775,6 +967,7 @@ describe('ForegroundFallbackManager Anthropic cooldown integration', () => {
-       // pick the first untried (cooldown ignored). Better to attempt and
-       // fail than leave the user fully stuck.
-       expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
-+      expect(mocks.prompt).not.toHaveBeenCalled();
-       const call = mocks.promptAsync.mock.calls[0] as [
-         { body: { model: { providerID: string; modelID: string } } },
-       ];
-@@ -827,3 +1020,194 @@ describe('ForegroundFallbackManager Anthropic cooldown integration', () => {
-     }
-   });
- });
-+
-+// ---------------------------------------------------------------------------
-+// ForegroundFallbackManager — orchestrator pivot
-+// ---------------------------------------------------------------------------
-+
-+describe('ForegroundFallbackManager orchestrator pivot', () => {
-+  test('pivots to orchestrator-beta when orchestrator hits retry status', async () => {
-+    const { client, mocks } = createMockClient();
-+    const mgr = new ForegroundFallbackManager(client, makeChains(), true);
-+
-+    // Pre-populate sessionAgent via message.updated event.
-+    await mgr.handleEvent({
-+      type: 'message.updated',
-+      properties: {
-+        info: {
-+          sessionID: 'sess-pivot-1',
-+          agent: 'orchestrator',
-+          providerID: 'gauge-forge-anthropic',
-+          modelID: 'claude-opus-4-7',
-+        },
-+      },
-+    });
-+
-+    await mgr.handleEvent({
-+      type: 'session.status',
-+      properties: {
-+        sessionID: 'sess-pivot-1',
-+        status: { type: 'retry', message: 'rate-limited' },
-+      },
-+    });
-+
-+    expect(mocks.abort).toHaveBeenCalledTimes(1);
-+    expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
-+    const call = mocks.promptAsync.mock.calls[0] as [
-+      {
-+        path: { id: string };
-+        body: {
-+          parts: unknown[];
-+          model: { providerID: string; modelID: string };
-+          agent?: string;
-+        };
-+      },
-+    ];
-+    expect(call[0].path.id).toBe('sess-pivot-1');
-+    expect(call[0].body.agent).toBe('orchestrator-beta');
-+    expect(call[0].body.model.providerID).toBe('gauge-forge-openai');
-+    expect(call[0].body.model.modelID).toBe('gpt-5.4');
-+  });
-+
-+  test('notifies plugin-level session identity on orchestrator pivot', async () => {
-+    const { client } = createMockClient();
-+    const onSessionAgentChange = mock((_sessionID: string, _agent: string) => {});
-+    const mgr = new ForegroundFallbackManager(
-+      client,
-+      makeChains(),
-+      true,
-+      undefined,
-+      onSessionAgentChange,
-+    );
-+
-+    await mgr.handleEvent({
-+      type: 'message.updated',
-+      properties: {
-+        info: {
-+          sessionID: 'sess-pivot-callback',
-+          agent: 'orchestrator',
-+          providerID: 'gauge-forge-anthropic',
-+          modelID: 'claude-opus-4-7',
-+        },
-+      },
-+    });
-+
-+    await mgr.handleEvent({
-+      type: 'session.status',
-+      properties: {
-+        sessionID: 'sess-pivot-callback',
-+        status: { type: 'retry', message: 'rate-limited' },
-+      },
-+    });
-+
-+    expect(onSessionAgentChange).toHaveBeenCalledTimes(1);
-+    expect(onSessionAgentChange).toHaveBeenCalledWith(
-+      'sess-pivot-callback',
-+      'orchestrator-beta',
-+    );
-+  });
-+
-+  test('does NOT pivot when current agent is orchestrator-beta', async () => {
-+    const { client, mocks } = createMockClient();
-+    const mgr = new ForegroundFallbackManager(client, makeChains(), true);
-+
-+    await mgr.handleEvent({
-+      type: 'message.updated',
-+      properties: {
-+        info: {
-+          sessionID: 'sess-beta-1',
-+          agent: 'orchestrator-beta',
-+          providerID: 'gauge-forge-openai',
-+          modelID: 'gpt-5.4',
-+        },
-+      },
-+    });
-+
-+    await mgr.handleEvent({
-+      type: 'session.status',
-+      properties: {
-+        sessionID: 'sess-beta-1',
-+        status: { type: 'retry', message: 'rate-limited' },
-+      },
-+    });
-+
-+    // No pivot. Chain-walk for orchestrator-beta has no chain entry, so
-+    // nothing happens.
-+    expect(mocks.abort).not.toHaveBeenCalled();
-+    expect(mocks.promptAsync).not.toHaveBeenCalled();
-+  });
-+
-+  test('does NOT pivot for child sessions even if agent is orchestrator', async () => {
-+    const { client, mocks } = createMockClient();
-+    const mgr = new ForegroundFallbackManager(client, makeChains(), true);
-+
-+    // Mark this session as a child via subagent.session.created.
-+    await mgr.handleEvent({
-+      type: 'subagent.session.created',
-+      properties: {
-+        sessionID: 'sess-child-1',
-+        agentName: 'orchestrator',
-+      },
-+    });
-+
-+    await mgr.handleEvent({
-+      type: 'session.status',
-+      properties: {
-+        sessionID: 'sess-child-1',
-+        status: { type: 'retry', message: 'rate-limited' },
-+      },
-+    });
-+
-+    expect(mocks.abort).not.toHaveBeenCalled();
-+    expect(mocks.promptAsync).not.toHaveBeenCalled();
-+  });
-+
-+  test('updates internal sessionAgent map to orchestrator-beta after pivot', async () => {
-+    const originalDateNow = Date.now;
-+    let now = Date.parse('2026-05-07T12:00:00Z');
-+    Date.now = () => now;
-+
-+    try {
-+      const { client, mocks } = createMockClient();
-+      const mgr = new ForegroundFallbackManager(client, makeChains(), true);
-+
-+      await mgr.handleEvent({
-+        type: 'message.updated',
-+        properties: {
-+          info: {
-+            sessionID: 'sess-pivot-2',
-+            agent: 'orchestrator',
-+            providerID: 'gauge-forge-anthropic',
-+            modelID: 'claude-opus-4-7',
-+          },
-+        },
-+      });
-+
-+      await mgr.handleEvent({
-+        type: 'session.status',
-+        properties: {
-+          sessionID: 'sess-pivot-2',
-+          status: { type: 'retry', message: 'rate-limited' },
-+        },
-+      });
-+
-+      // Move beyond the dedup window so the second trigger can only be blocked
-+      // by the pivot's sessionAgent update to orchestrator-beta.
-+      now += 6_000;
-+
-+      await mgr.handleEvent({
-+        type: 'session.status',
-+        properties: {
-+          sessionID: 'sess-pivot-2',
-+          status: { type: 'retry', message: 'rate-limited again' },
-+        },
-+      });
-+
-+      // First retry produced exactly one promptAsync call (the pivot).
-+      // Second retry produced zero because the session is now orchestrator-beta.
-+      expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
-+    } finally {
-+      Date.now = originalDateNow;
-+    }
-+  });
-+});
 diff --git a/src/hooks/foreground-fallback/index.ts b/src/hooks/foreground-fallback/index.ts
-index f9e0577..389383e 100644
+index ed7e470..693cda8 100644
 --- a/src/hooks/foreground-fallback/index.ts
 +++ b/src/hooks/foreground-fallback/index.ts
-@@ -16,6 +16,12 @@
+@@ -16,43 +16,69 @@
  
  import type { PluginInput } from '@opencode-ai/plugin';
  import { log } from '../../utils/logger';
@@ -1145,11 +455,12 @@ index f9e0577..389383e 100644
 +  PIVOT_TARGET_MODEL,
 +  PIVOT_TARGET_ORCHESTRATOR,
 +} from '../../utils/orchestrator-identity';
- import {
-   type CooldownStore,
-   createCooldownStore,
-@@ -23,51 +29,61 @@ import {
- } from './cooldowns';
+ import { abortSessionWithTimeout } from '../../utils/session';
++import {
++  type CooldownStore,
++  createCooldownStore,
++  parseAnthropicCooldown,
++} from './cooldowns';
  
  type OpencodeClient = PluginInput['client'];
 +type SessionAgentChangeHandler = (sessionID: string, agentName: string) => void;
@@ -1165,6 +476,8 @@ index f9e0577..389383e 100644
 -  /too many requests/i,
 -  /quota.?exceeded/i,
 -  /usage.?exceeded/i,
+-  /ExceededBudget/i,
+-  /over.?budget/i,
 -  /usage limit/i,
 -  /overloaded/i,
 -  /resource.?exhausted/i,
@@ -1204,74 +517,85 @@ index f9e0577..389383e 100644
 + * `{ error: ApiError }`, so unwrap recursively.
 + */
 +function unwrapApiError(error: unknown): RetryableApiError | null {
-+  if (!error || typeof error !== 'object') return null;
++  if (!error || typeof error !== "object") return null;
 +  const err = error as RetryableApiError;
 +  if (err.data || err.name) return err;
 +  if (err.error) return unwrapApiError(err.error);
 +  return err;
 +}
 +
-+/**
-+ * Structured retryable-failure detector.
-+ *
-+ * We intentionally do NOT regex-match free-form provider text here.
-+ * Instead we follow OpenCode's behavior contract:
-+ *   - retryable direct API failures carry `data.isRetryable === true`
-+ *   - 429 is always retryable even if `isRetryable` is absent
-+ */
 +export function isRateLimitError(error: unknown): boolean {
 +  const err = unwrapApiError(error);
 +  if (!err?.data) return false;
 +  return err.data.isRetryable === true || err.data.statusCode === 429;
- }
- 
- /**
-- * Extract response headers from a rate-limit-shaped error event payload.
-- * Lives at error.data.responseHeaders per @opencode-ai/sdk's ApiError type
-- * (types.gen.d.ts: data.responseHeaders?: Record<string, string>).
++}
++
++/**
 + * Extract response headers from a structured API error.
 + * Lives at error.data.responseHeaders per @opencode-ai/sdk's ApiError type.
-  */
- function extractResponseHeaders(
-   error: unknown,
- ): Record<string, string> | undefined {
--  if (!error || typeof error !== 'object') return undefined;
--  const data = (error as { data?: { responseHeaders?: unknown } }).data;
--  const headers = data?.responseHeaders;
++ */
++function extractResponseHeaders(
++  error: unknown,
++): Record<string, string> | undefined {
 +  const headers = unwrapApiError(error)?.data?.responseHeaders;
-   if (!headers || typeof headers !== 'object') return undefined;
-   return headers as Record<string, string>;
++  if (!headers || typeof headers !== 'object') return undefined;
++  return headers as Record<string, string>;
  }
-@@ -108,6 +124,8 @@ export class ForegroundFallbackManager {
+ 
+ // ---------------------------------------------------------------------------
+@@ -92,17 +118,48 @@ export class ForegroundFallbackManager {
    private readonly inProgress = new Set<string>();
-   /** sessionID → timestamp of last trigger (for deduplication) */
+   /** sessionID 鈫?timestamp of last trigger (for deduplication) */
    private readonly lastTrigger = new Map<string, number>();
 +  /** task/subagent-owned child sessions (session.created with parentID) */
 +  private readonly childSessions = new Set<string>();
++  /** Persistent cross-session cooldown tracker for cooled-down models */
++  private readonly cooldowns: CooldownStore;
  
-   /**
-    * Persistent cross-session cooldown tracker. When an Anthropic rate-limit
-@@ -130,6 +148,7 @@ export class ForegroundFallbackManager {
+   constructor(
+     private readonly client: OpencodeClient,
+     /**
+      * Ordered fallback chains per agent.
+      * e.g. { orchestrator: ['anthropic/claude-opus-4-5', 'openai/gpt-4o'] }
+-     * The first model that hasn't been tried yet is selected on each fallback.
+-     */
++      * The first model that hasn't been tried yet is selected on each fallback.
++      */
      private readonly chains: Record<string, string[]>,
      private readonly enabled: boolean,
-     cooldowns?: CooldownStore,
+-  ) {}
++    cooldowns?: CooldownStore,
 +    private readonly onSessionAgentChange?: SessionAgentChangeHandler,
-   ) {
-     this.cooldowns = cooldowns ?? createCooldownStore();
-   }
-@@ -144,10 +163,7 @@ export class ForegroundFallbackManager {
-    * limit. Idempotent: only records forward-looking reset times. Persists
-    * to disk synchronously.
-    */
--  private captureCooldown(
--    sessionID: string,
--    error: unknown,
--  ): void {
++  ) {
++    this.cooldowns = cooldowns ?? createCooldownStore();
++  }
++
++  /** Expose the cooldown store (used by startup-time model selection). */
++  getCooldownStore(): CooldownStore {
++    return this.cooldowns;
++  }
++
++  /**
++   * Capture an Anthropic-style cooldown for the model that just hit a rate
++   * limit. Idempotent: only records forward-looking reset times.
++   */
 +  private captureCooldown(sessionID: string, error: unknown): void {
-     const currentModel = this.sessionModel.get(sessionID);
-     if (!currentModel) return;
-     const headers = extractResponseHeaders(error);
-@@ -171,6 +187,18 @@ export class ForegroundFallbackManager {
++    const currentModel = this.sessionModel.get(sessionID);
++    if (!currentModel) return;
++    const headers = extractResponseHeaders(error);
++    const epoch = parseAnthropicCooldown(headers);
++    if (epoch === null) return;
++    this.cooldowns.set(currentModel, epoch);
++    log('[foreground-fallback] recorded model cooldown', {
++      sessionID,
++      model: currentModel,
++      until: new Date(epoch).toISOString(),
++    });
++  }
+ 
+   /**
+    * Process an OpenCode plugin event.
+@@ -114,6 +171,18 @@ export class ForegroundFallbackManager {
      if (!event?.type) return;
  
      switch (event.type) {
@@ -1290,7 +614,23 @@ index f9e0577..389383e 100644
        case 'message.updated': {
          const info = (
            event.properties as { info?: Record<string, unknown> } | undefined
-@@ -219,17 +247,9 @@ export class ForegroundFallbackManager {
+@@ -137,6 +206,7 @@ export class ForegroundFallbackManager {
+         }
+         // Rate-limit on an individual message
+         if (info.error && isRateLimitError(info.error)) {
++          this.captureCooldown(sessionID, info.error);
+           await this.tryFallback(sessionID);
+         }
+         break;
+@@ -147,6 +217,7 @@ export class ForegroundFallbackManager {
+           | { sessionID?: string; error?: unknown }
+           | undefined;
+         if (props?.sessionID && props.error && isRateLimitError(props.error)) {
++          this.captureCooldown(props.sessionID, props.error);
+           await this.tryFallback(props.sessionID);
+         }
+         break;
+@@ -160,19 +231,7 @@ export class ForegroundFallbackManager {
              }
            | undefined;
          if (!props?.sessionID || props.status?.type !== 'retry') break;
@@ -1300,18 +640,18 @@ index f9e0577..389383e 100644
 -          msg.includes('usage limit') ||
 -          msg.includes('usage exceeded') ||
 -          msg.includes('quota exceeded') ||
+-          msg.includes('exceededbudget') ||
+-          msg.includes('over budget') ||
 -          msg.includes('high concurrency') ||
 -          msg.includes('reduce concurrency')
 -        ) {
 -          await this.tryFallback(props.sessionID);
 -        }
-+        // Behavior-based trigger: if OpenCode has entered structured retry mode,
-+        // we should switch models regardless of the provider's free-form message text.
 +        await this.tryFallback(props.sessionID);
          break;
        }
  
-@@ -238,8 +258,11 @@ export class ForegroundFallbackManager {
+@@ -181,8 +240,11 @@ export class ForegroundFallbackManager {
          const props = event.properties as
            | { sessionID?: string; agentName?: unknown }
            | undefined;
@@ -1325,7 +665,7 @@ index f9e0577..389383e 100644
          }
          break;
        }
-@@ -259,6 +282,7 @@ export class ForegroundFallbackManager {
+@@ -202,6 +264,7 @@ export class ForegroundFallbackManager {
            this.sessionModel.delete(id);
            this.sessionAgent.delete(id);
            this.sessionTried.delete(id);
@@ -1333,10 +673,11 @@ index f9e0577..389383e 100644
            this.inProgress.delete(id);
            this.lastTrigger.delete(id);
          }
-@@ -273,8 +297,41 @@ export class ForegroundFallbackManager {
+@@ -215,9 +278,35 @@ export class ForegroundFallbackManager {
+   // ---------------------------------------------------------------------------
  
    private async tryFallback(sessionID: string): Promise<void> {
-     if (!sessionID) return;
++    if (!sessionID) return;
 +    if (this.shouldPivotOrchestrator(sessionID)) {
 +      await this.pivotOrchestrator(sessionID);
 +      return;
@@ -1346,12 +687,8 @@ index f9e0577..389383e 100644
 +
 +  /**
 +   * Return true if a fallback trigger on this session should perform the
-+   * one-shot orchestrator → orchestrator-beta pivot rather than the
++   * one-shot orchestrator 鈫?orchestrator-beta pivot rather than the
 +   * generic chain-walk.
-+   *
-+   * Conditions:
-+   *   - sessionID is a foreground session (not in childSessions)
-+   *   - sessionAgent.get(sessionID) === ANTHROPIC_PRIMARY_ORCHESTRATOR
 +   */
 +  private shouldPivotOrchestrator(sessionID: string): boolean {
 +    if (this.childSessions.has(sessionID)) return false;
@@ -1359,13 +696,10 @@ index f9e0577..389383e 100644
 +  }
 +
 +  private async chainWalkFallback(sessionID: string): Promise<void> {
+     if (!sessionID) return;
      if (this.inProgress.has(sessionID)) return;
  
 +    if (this.childSessions.has(sessionID)) {
-+      // Task-owned child sessions are pre-routed at startup by the main
-+      // plugin logic. Mid-flight rescue inside the same child session is
-+      // deliberately disabled because it races the parent/task completion
-+      // contract and causes empty immediate returns.
 +      log('[foreground-fallback] child session mid-flight fallback disabled', {
 +        sessionID,
 +      });
@@ -1375,79 +709,37 @@ index f9e0577..389383e 100644
      // Deduplicate: multiple events can fire for a single rate-limit event.
      const now = Date.now();
      if (now - (this.lastTrigger.get(sessionID) ?? 0) < DEDUP_WINDOW_MS) return;
-@@ -347,7 +404,10 @@ export class ForegroundFallbackManager {
-         return;
-       }
+@@ -243,7 +332,12 @@ export class ForegroundFallbackManager {
+       const tried = this.sessionTried.get(sessionID)!;
+       if (currentModel) tried.add(currentModel);
  
--      // Abort the currently rate-limited prompt so the session becomes idle.
-+      // Foreground/main sessions use abort + async replay. The abort is
-+      // what flips OpenCode out of its core retry loop so the replay can
-+      // take over cleanly. Child sessions returned above before any
-+      // mid-flight fallback work begins.
-       try {
-         await this.client.session.abort({ path: { id: sessionID } });
-       } catch {
-@@ -357,23 +417,28 @@ export class ForegroundFallbackManager {
-       // Give the server a moment to finalise the abort before re-prompting.
-       await new Promise((r) => setTimeout(r, 500));
- 
--      // promptAsync queues the prompt and returns immediately — this avoids
--      // blocking the event handler while waiting for a full LLM response.
--      // Cast required: promptAsync is not in the plugin TypeScript types for
--      // oh-my-opencode-slim but IS present on the real OpenCode client at
--      // runtime (verified by opencode-rate-limit-fallback reference impl).
-+      const body = {
-+        parts: lastUser.parts,
-+        model: ref,
-+        ...(agentName ? { agent: agentName } : {}),
-+      };
-+
-       const sessionClient = this.client.session as unknown as {
-         promptAsync: (args: {
-           path: { id: string };
-           body: {
-             parts: unknown[];
-             model: { providerID: string; modelID: string };
-+            agent?: string;
-           };
-         }) => Promise<unknown>;
-       };
-+
-+      // Foreground/main sessions stay non-blocking: queue the replay and
-+      // return immediately so the event hook does not stall the UI.
-       await sessionClient.promptAsync({
-         path: { id: sessionID },
--        body: { parts: lastUser.parts, model: ref },
-+        body,
-       });
- 
-       this.sessionModel.set(sessionID, nextModel);
-@@ -393,6 +458,96 @@ export class ForegroundFallbackManager {
+-      const nextModel = chain.find((m) => !tried.has(m));
++      let nextModel = chain.find(
++        (m) => !tried.has(m) && !this.cooldowns.isCoolingDown(m),
++      );
++      if (!nextModel) {
++        nextModel = chain.find((m) => !tried.has(m));
++      }
+       if (!nextModel) {
+         log('[foreground-fallback] fallback chain exhausted', {
+           sessionID,
+@@ -334,6 +428,93 @@ export class ForegroundFallbackManager {
      }
    }
  
 +  /**
 +   * One-shot pivot from the anthropic-primary orchestrator to
-+   * orchestrator-beta. Aborts the rate-limited foreground session, sleeps
-+   * briefly to let the abort settle, then replays the last user message
-+   * with body.agent = 'orchestrator-beta' and body.model = gpt-5.4.
-+   *
-+   * The session's agent identity is reassigned via the replay's body.agent
-+   * field; the plugin-level identity callback updates the same map used by
-+   * subsequent subagent pre-route decisions.
-+   *
-+   * No chain walking. No sessionTried bookkeeping. The pivot is one-way
-+   * per session — the user must manually re-select 'orchestrator' from
-+   * the TUI to revert.
++   * orchestrator-beta using gpt-5.4.
 +   */
 +  private async pivotOrchestrator(sessionID: string): Promise<void> {
 +    if (!sessionID) return;
 +    if (this.inProgress.has(sessionID)) return;
++
 +    const now = Date.now();
 +    if (now - (this.lastTrigger.get(sessionID) ?? 0) < DEDUP_WINDOW_MS) return;
 +    this.lastTrigger.set(sessionID, now);
-+    this.inProgress.add(sessionID);
 +
++    this.inProgress.add(sessionID);
 +    try {
 +      const result = await this.client.session.messages({
 +        path: { id: sessionID },
@@ -1464,21 +756,8 @@ index f9e0577..389383e 100644
 +        return;
 +      }
 +
-+      try {
-+        await this.client.session.abort({ path: { id: sessionID } });
-+      } catch {
-+        // Session may already be idle; safe to ignore.
-+      }
-+      await new Promise((r) => setTimeout(r, 500));
-+
-+      const body = {
-+        parts: lastUser.parts,
-+        model: PIVOT_TARGET_MODEL,
-+        agent: PIVOT_TARGET_ORCHESTRATOR,
-+      };
-+
 +      const sessionClient = this.client.session as unknown as {
-+        promptAsync: (args: {
++        promptAsync?: (args: {
 +          path: { id: string };
 +          body: {
 +            parts: unknown[];
@@ -1487,10 +766,29 @@ index f9e0577..389383e 100644
 +          };
 +        }) => Promise<unknown>;
 +      };
++      if (typeof sessionClient.promptAsync !== 'function') {
++        log('[orchestrator-pivot] promptAsync unavailable', { sessionID });
++        return;
++      }
++
++      try {
++        await abortSessionWithTimeout(this.client, sessionID);
++      } catch (error) {
++        log('[orchestrator-pivot] abort did not complete cleanly', {
++          sessionID,
++          error: error instanceof Error ? error.message : String(error),
++        });
++      }
++
++      await new Promise((r) => setTimeout(r, REPROMPT_DELAY_MS));
 +
 +      await sessionClient.promptAsync({
 +        path: { id: sessionID },
-+        body,
++        body: {
++          parts: lastUser.parts,
++          model: PIVOT_TARGET_MODEL,
++          agent: PIVOT_TARGET_ORCHESTRATOR,
++        },
 +      });
 +
 +      this.sessionAgent.set(sessionID, PIVOT_TARGET_ORCHESTRATOR);
@@ -1509,7 +807,7 @@ index f9e0577..389383e 100644
 +    } catch (err) {
 +      log('[orchestrator-pivot] pivot failed', {
 +        sessionID,
-+        error: String(err),
++        error: err instanceof Error ? err.message : String(err),
 +      });
 +    } finally {
 +      this.inProgress.delete(sessionID);
@@ -1519,573 +817,6 @@ index f9e0577..389383e 100644
    // ---------------------------------------------------------------------------
    // Chain resolution
    // ---------------------------------------------------------------------------
-diff --git a/src/index.test.ts b/src/index.test.ts
-new file mode 100644
-index 0000000..597c391
---- /dev/null
-+++ b/src/index.test.ts
-@@ -0,0 +1,126 @@
-+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
-+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-+import { tmpdir } from 'node:os';
-+import { join } from 'node:path';
-+import OhMyOpenCodeLite from './index';
-+
-+describe('plugin orchestrator pivot identity', () => {
-+  let projectDir: string;
-+  let configHome: string;
-+  let previousXdgConfigHome: string | undefined;
-+  let previousOpenCodeConfigDir: string | undefined;
-+
-+  beforeEach(() => {
-+    projectDir = mkTestDir('omo-plugin-project-');
-+    configHome = mkTestDir('omo-plugin-config-');
-+    previousXdgConfigHome = process.env.XDG_CONFIG_HOME;
-+    previousOpenCodeConfigDir = process.env.OPENCODE_CONFIG_DIR;
-+    process.env.XDG_CONFIG_HOME = configHome;
-+    delete process.env.OPENCODE_CONFIG_DIR;
-+
-+    const configDir = join(projectDir, '.opencode');
-+    mkdirSync(configDir, { recursive: true });
-+    writeFileSync(
-+      join(configDir, 'oh-my-opencode-slim.json'),
-+      JSON.stringify({
-+        showStartupToast: false,
-+        multiplexer: { type: 'none' },
-+        agents: {
-+          orchestrator: {
-+            model: [
-+              'gauge-forge-anthropic/claude-opus-4-7',
-+              'gauge-forge-openai/gpt-5.4',
-+            ],
-+          },
-+          librarian: {
-+            model: [
-+              'gauge-forge-anthropic/claude-opus-4-7',
-+              'gauge-forge-openai/gpt-5.4',
-+            ],
-+          },
-+        },
-+      }),
-+    );
-+  });
-+
-+  afterEach(() => {
-+    restoreEnv('XDG_CONFIG_HOME', previousXdgConfigHome);
-+    restoreEnv('OPENCODE_CONFIG_DIR', previousOpenCodeConfigDir);
-+    rmSync(projectDir, { recursive: true, force: true });
-+    rmSync(configHome, { recursive: true, force: true });
-+  });
-+
-+  test('fresh child preroute sees orchestrator-beta after foreground pivot', async () => {
-+    const plugin = await OhMyOpenCodeLite({
-+      directory: projectDir,
-+      client: {
-+        app: { log: mock(async () => ({})) },
-+        session: {
-+          messages: mock(async () => ({
-+            data: [
-+              {
-+                info: { role: 'user' },
-+                parts: [{ type: 'text', text: 'delegate this' }],
-+              },
-+            ],
-+          })),
-+          abort: mock(async () => ({})),
-+          promptAsync: mock(async () => ({})),
-+        },
-+      },
-+    } as Parameters<typeof OhMyOpenCodeLite>[0]);
-+
-+    await plugin['chat.message'](
-+      { sessionID: 'root-session', agent: 'orchestrator' },
-+      { message: { agent: 'orchestrator' } },
-+    );
-+    await plugin.event({
-+      event: {
-+        type: 'message.updated',
-+        properties: {
-+          info: {
-+            sessionID: 'root-session',
-+            agent: 'orchestrator',
-+            providerID: 'gauge-forge-anthropic',
-+            modelID: 'claude-opus-4-7',
-+          },
-+        },
-+      },
-+    });
-+    await plugin.event({
-+      event: {
-+        type: 'session.status',
-+        properties: {
-+          sessionID: 'root-session',
-+          status: { type: 'retry', message: 'rate-limited' },
-+        },
-+      },
-+    });
-+
-+    const output = { args: { subagent_type: 'librarian' } };
-+    await plugin['tool.execute.before'](
-+      { tool: 'task', sessionID: 'root-session' },
-+      output,
-+    );
-+
-+    expect(output.args.subagent_type).toBe('librarian__task_fallback');
-+  });
-+});
-+
-+function mkTestDir(prefix: string): string {
-+  const dir = join(
-+    tmpdir(),
-+    `${prefix}${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
-+  );
-+  if (existsSync(dir)) rmSync(dir, { recursive: true, force: true });
-+  mkdirSync(dir, { recursive: true });
-+  return dir;
-+}
-+
-+function restoreEnv(name: string, value: string | undefined): void {
-+  if (value === undefined) {
-+    delete process.env[name];
-+  } else {
-+    process.env[name] = value;
-+  }
-+}
-diff --git a/src/index.ts b/src/index.ts
-index b37baf8..e3b6c42 100644
---- a/src/index.ts
-+++ b/src/index.ts
-@@ -6,6 +6,7 @@ import {
-   getTaskFallbackShadowName,
- } from './agents';
- import { buildOrchestratorPrompt } from './agents/orchestrator';
-+import { decideTaskPreroute } from './agents/preroute-decision';
- import { isOrchestratorAgent } from './cli/superpowers-policy';
- import { loadPluginConfig, type MultiplexerConfig } from './config';
- import { buildAgentMcpPermissionRules } from './config/agent-mcps';
-@@ -22,7 +23,6 @@ import {
-   createPostFileToolNudgeHook,
-   createTodoContinuationHook,
-   ForegroundFallbackManager,
--  isRateLimitError,
- } from './hooks';
- import { processImageAttachments } from './hooks/image-hook';
- import { createInterviewManager } from './interview';
-@@ -39,13 +39,11 @@ import {
-   createPresetManager,
-   createWebfetchTool,
- } from './tools';
--import {
--  createInternalAgentTextPart,
--  resolveRuntimeAgentName,
--  rewriteDisplayNameMentions,
--} from './utils';
-+import { resolveRuntimeAgentName, rewriteDisplayNameMentions } from './utils';
- import { initLogger, log } from './utils/logger';
- import { mergeAgentConfig } from './utils/merge-agent-config';
-+import { isPivotedRootAgent } from './utils/orchestrator-identity';
-+import { extractSessionAgent } from './utils/session';
- import { SubagentDepthTracker } from './utils/subagent-depth';
- import { collapseSystemInPlace } from './utils/system-collapse';
- 
-@@ -86,15 +84,13 @@ function getAnthropicTaskFallbackRoute(
- ):
-   | {
-       shadowAgentName: string;
--      backupModel: string;
-     }
-   | undefined {
-   if (!models || models.length < 2) return undefined;
--  const [primary, backup] = models;
-+  const [primary] = models;
-   if (!isAnthropicPrimaryModel(primary?.id)) return undefined;
-   return {
-     shadowAgentName: getTaskFallbackShadowName(agentName),
--    backupModel: backup.id,
-   };
- }
- 
-@@ -146,19 +142,10 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
-   >;
-   let sessionAgentMap: Map<string, string>;
-   let sessionRootMap: Map<string, string>;
--  let sessionCurrentModelMap: Map<string, string>;
--  let anthropicDegradedRoots: Set<string>;
--  // Manually-forced degraded flag from /anthropic-degraded on. Survives the
--  // per-turn chat.message clear that anthropicDegradedRoots is subject to,
--  // so the debug command can reliably exercise the pre-route path without
--  // having to actually exhaust an Anthropic quota. Cleared only via
--  // /anthropic-degraded off or session.deleted.
--  let anthropicForcedRoots: Set<string>;
-   let anthropicTaskFallbacks!: Record<
-     string,
-     {
-       shadowAgentName: string;
--      backupModel: string;
-     }
-   >;
-   let postFileToolNudgeHook: ReturnType<typeof createPostFileToolNudgeHook>;
-@@ -197,7 +184,6 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
-       string,
-       {
-         shadowAgentName: string;
--        backupModel: string;
-       }
-     >;
-     // Record anthropic-primary agents that have an explicit backup model in
-@@ -264,9 +250,6 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
- 
-     depthTracker = new SubagentDepthTracker();
-     sessionRootMap = new Map<string, string>();
--    sessionCurrentModelMap = new Map<string, string>();
--    anthropicDegradedRoots = new Set<string>();
--    anthropicForcedRoots = new Set<string>();
- 
-     // Initialize council tools (only when council is configured)
-     councilTools = config.council
-@@ -326,6 +309,10 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
-       runtimeChains,
-       config.fallback?.enabled !== false &&
-         Object.keys(runtimeChains).length > 0,
-+      undefined,
-+      (sessionID, agentName) => {
-+        sessionAgentMap.set(sessionID, agentName);
-+      },
-     );
- 
-     // Initialize todo-continuation hook (opt-in auto-continue for
-@@ -360,35 +347,6 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
-     return sessionRootMap.get(sessionID) ?? sessionID;
-   };
- 
--  const markRootAnthropicDegraded = (
--    sessionID: string,
--    source: string,
--  ): void => {
--    const model = sessionCurrentModelMap.get(sessionID);
--    if (!isAnthropicPrimaryModel(model)) return;
--    const rootSessionID = getRootSessionId(sessionID);
--    if (!anthropicDegradedRoots.has(rootSessionID)) {
--      anthropicDegradedRoots.add(rootSessionID);
--      log('[child-preroute] root anthropic degraded', {
--        source,
--        sessionID,
--        rootSessionID,
--        model,
--      });
--    }
--  };
--
--  const clearRootAnthropicDegraded = (
--    rootSessionID: string,
--    source: string,
--  ): void => {
--    if (anthropicDegradedRoots.delete(rootSessionID)) {
--      log('[child-preroute] root anthropic restored', {
--        source,
--        rootSessionID,
--      });
--    }
--  };
- 
-   // ── Health check: validate registrations ────────────────────────────
-   const agentCount = Object.keys(agents).length;
-@@ -641,20 +599,6 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
-         };
-       }
- 
--      if (!configCommand?.['anthropic-degraded']) {
--        if (!opencodeConfig.command) {
--          opencodeConfig.command = {};
--        }
--        (opencodeConfig.command as Record<string, unknown>)[
--          'anthropic-degraded'
--        ] = {
--          template:
--            'Inspect or override the current root-session Anthropic degraded flag: /anthropic-degraded on|off|status',
--          description:
--            'Debug command for task-child startup pre-route when Anthropic is unhealthy',
--        };
--      }
--
-       interviewManager.registerCommand(opencodeConfig);
-       presetManager.registerCommand(opencodeConfig);
-     },
-@@ -683,52 +627,9 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
-         }
-       }
- 
--      if (event.type === 'message.updated') {
--        const info = event.properties?.info as
--          | {
--              sessionID?: string;
--              providerID?: string;
--              modelID?: string;
--              error?: unknown;
--            }
--          | undefined;
--        if (
--          info?.sessionID &&
--          typeof info.providerID === 'string' &&
--          typeof info.modelID === 'string'
--        ) {
--          sessionCurrentModelMap.set(
--            info.sessionID,
--            `${info.providerID}/${info.modelID}`,
--          );
--        }
--        if (info?.sessionID && info.error && isRateLimitError(info.error)) {
--          markRootAnthropicDegraded(info.sessionID, 'message.updated');
--        }
--      }
--
--      if (event.type === 'session.error') {
--        const props = event.properties as
--          | { sessionID?: string; error?: unknown }
--          | undefined;
--        if (props?.sessionID && props.error && isRateLimitError(props.error)) {
--          markRootAnthropicDegraded(props.sessionID, 'session.error');
--        }
--      }
--
--      if (
--        event.type === 'session.status' &&
--        event.properties?.sessionID &&
--        event.properties?.status?.type === 'retry'
--      ) {
--        markRootAnthropicDegraded(
--          event.properties.sessionID,
--          'session.status.retry',
--        );
--      }
--
-       // Runtime model fallback for foreground agents (rate-limit detection)
-       await foregroundFallback.handleEvent(input.event);
-+
-       // Todo-continuation: auto-continue orchestrator on incomplete todos
-       await todoContinuationHook.handleEvent(input);
- 
-@@ -772,14 +673,8 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
-           depthTracker.cleanup(sessionID);
-         }
-         if (sessionID) {
--          const rootSessionID = getRootSessionId(sessionID);
-           sessionAgentMap.delete(sessionID);
--          sessionCurrentModelMap.delete(sessionID);
-           sessionRootMap.delete(sessionID);
--          if (rootSessionID === sessionID) {
--            anthropicDegradedRoots.delete(rootSessionID);
--            anthropicForcedRoots.delete(rootSessionID);
--          }
-         }
-       }
-     },
-@@ -807,98 +702,100 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
-       if (typeof args?.subagent_type !== 'string') {
-         return;
-       }
--      // Resumed tasks already have an existing child session/model; only
--      // fresh task spawns are pre-routed.
--      if (typeof args.task_id === 'string' && args.task_id.length > 0) {
--        return;
-+      const rootSessionID = getRootSessionId(input.sessionID);
-+      const rootAgent = sessionAgentMap.get(rootSessionID);
-+      const originalSubagentType = args.subagent_type;
-+      const taskId =
-+        typeof args.task_id === 'string' ? args.task_id : undefined;
-+      const isPivotedRoot = isPivotedRootAgent(rootAgent);
-+
-+      if (taskId) {
-+        log('[child-preroute][diag] evaluate task resume/fresh', {
-+          rootSessionID,
-+          rootAgent,
-+          isPivotedRoot,
-+          subagentType: originalSubagentType,
-+          taskId,
-+        });
-       }
- 
--      const rootSessionID = getRootSessionId(input.sessionID);
--      const isAuto = anthropicDegradedRoots.has(rootSessionID);
--      const isForced = anthropicForcedRoots.has(rootSessionID);
--      if (!isAuto && !isForced) {
--        log('[child-preroute] skip: root not degraded', {
-+      const verdict = await decideTaskPreroute({
-+        rootAgent,
-+        subagentType: originalSubagentType,
-+        taskId,
-+        lookupSessionAgent: async (id) => {
-+          try {
-+            const resumedAgentName = await extractSessionAgent(ctx.client, id);
-+            log('[child-preroute][diag] resumed session lookup', {
-+              rootSessionID,
-+              requestedTaskId: id,
-+              source: 'session.messages',
-+              resumedAgentName,
-+            });
-+            return resumedAgentName;
-+          } catch (err) {
-+            log('[child-preroute][diag] resumed session lookup failed', {
-+              rootSessionID,
-+              requestedTaskId: id,
-+              source: 'session.messages',
-+              error: err instanceof Error ? err.message : String(err),
-+            });
-+            return undefined;
-+          }
-+        },
-+        anthropicTaskFallbacks,
-+      });
-+
-+      if (taskId) {
-+        log('[child-preroute][diag] preroute verdict', {
-           rootSessionID,
--          subagentType: args.subagent_type,
-+          rootAgent,
-+          isPivotedRoot,
-+          subagentType: originalSubagentType,
-+          taskId,
-+          action: verdict.action,
-+          errorMessage:
-+            verdict.action === 'block' ? verdict.errorMessage : undefined,
-+          newSubagentType:
-+            verdict.action === 'rewrite' ? verdict.newSubagentType : undefined,
-         });
--        return;
-       }
- 
--      const route = anthropicTaskFallbacks[args.subagent_type];
--      if (!route) {
--        log('[child-preroute] skip: no anthropic→backup route for agent', {
-+      if (verdict.action === 'passthrough') {
-+        log('[child-preroute] passthrough task-owned child', {
-           rootSessionID,
--          subagentType: args.subagent_type,
--          source: isForced ? 'forced' : 'auto',
-+          rootAgent,
-+          subagentType: originalSubagentType,
-+          source: isPivotedRoot ? 'pivoted' : 'identity',
-         });
-         return;
-       }
- 
--      const originalSubagentType = args.subagent_type;
--      args.subagent_type = route.shadowAgentName;
-+      if (verdict.action === 'block') {
-+        log(
-+          '[child-preroute] blocked resumed task on anthropic-primary child',
-+          {
-+            rootSessionID,
-+            taskId: args.task_id,
-+            errorMessage: verdict.errorMessage,
-+          },
-+        );
-+        throw new Error(verdict.errorMessage);
-+      }
-+
-+      args.subagent_type = verdict.newSubagentType;
-       log('[child-preroute] rerouted task-owned child to backup shadow agent', {
-         rootSessionID,
-         callerSessionID: input.sessionID,
-         subagentType: originalSubagentType,
--        shadowAgentType: route.shadowAgentName,
--        model: route.backupModel,
--        source: isForced ? 'forced' : 'auto',
-+        shadowAgentType: verdict.newSubagentType,
-+        source: 'pivoted',
-       });
-     },
- 
-     // Direct interception of /auto-continue command — bypasses LLM
-     // round-trip
-     'command.execute.before': async (input, output) => {
--      if (input.command === 'anthropic-degraded') {
--        const parts = output.parts as Array<{ type: string; text?: string }>;
--        parts.length = 0;
--        const rootSessionID = getRootSessionId(input.sessionID);
--        const arg = input.arguments.trim().toLowerCase();
--        if (arg === 'on') {
--          anthropicForcedRoots.add(rootSessionID);
--          log('[child-preroute] root anthropic forced ON (manual)', {
--            rootSessionID,
--          });
--          parts.push(
--            createInternalAgentTextPart(
--              `Anthropic degraded flag forced ON for root session ${rootSessionID}. Fresh task-owned child sessions using Anthropic-primary lanes will be pre-routed to their backup model.`,
--            ),
--          );
--          return;
--        }
--        if (arg === 'off') {
--          const hadForced = anthropicForcedRoots.delete(rootSessionID);
--          const hadAuto = anthropicDegradedRoots.delete(rootSessionID);
--          log('[child-preroute] root anthropic forced OFF (manual)', {
--            rootSessionID,
--            clearedForced: hadForced,
--            clearedAuto: hadAuto,
--          });
--          parts.push(
--            createInternalAgentTextPart(
--              `Anthropic degraded flag forced OFF for root session ${rootSessionID}. Fresh task-owned child sessions will use their normal primary model again.`,
--            ),
--          );
--          return;
--        }
--        const forcedOn = anthropicForcedRoots.has(rootSessionID);
--        const autoOn = anthropicDegradedRoots.has(rootSessionID);
--        const state =
--          forcedOn && autoOn
--            ? 'ON (forced+auto)'
--            : forcedOn
--              ? 'ON (forced)'
--              : autoOn
--                ? 'ON (auto)'
--                : 'OFF';
--        parts.length = 0;
--        parts.push(
--          createInternalAgentTextPart(
--            `Anthropic degraded flag for root session ${rootSessionID}: ${state}. Use /anthropic-degraded on|off|status.`,
--          ),
--        );
--        return;
--      }
- 
-       await todoContinuationHook.handleCommandExecuteBefore(
-         input as {
-@@ -952,25 +849,11 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
-       if (!sessionRootMap.has(input.sessionID)) {
-         sessionRootMap.set(input.sessionID, input.sessionID);
-       }
--      const rootSessionID = getRootSessionId(input.sessionID);
- 
-       if (agent) {
-         sessionAgentMap.set(input.sessionID, agent);
-       }
- 
--      // Per design: each new root/main prompt clears the degraded flag and
--      // gives Anthropic one fresh chance. If the prompt falls back again,
--      // runtime event bookkeeping flips the flag back on.
--      if (rootSessionID === input.sessionID && agent) {
--        const route = anthropicTaskFallbacks[agent];
--        if (route) {
--          clearRootAnthropicDegraded(
--            rootSessionID,
--            `root chat.message ${agent}`,
--          );
--        }
--      }
--
-       todoContinuationHook.handleChatMessage({
-         sessionID: input.sessionID,
-         agent,
-@@ -1051,6 +934,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
-         }>;
-       };
- 
-+
-       for (const message of typedOutput.messages) {
-         if (message.info.role !== 'user') {
-           continue;
 diff --git a/src/utils/orchestrator-identity.test.ts b/src/utils/orchestrator-identity.test.ts
 new file mode 100644
 index 0000000..a411e2d
@@ -2232,96 +963,3 @@ index 0000000..78a3c16
 +export function isPivotedRootAgent(agentName: string | undefined): boolean {
 +  return agentName === PIVOT_TARGET_ORCHESTRATOR;
 +}
-diff --git a/src/utils/session.test.ts b/src/utils/session.test.ts
-new file mode 100644
-index 0000000..be5625c
---- /dev/null
-+++ b/src/utils/session.test.ts
-@@ -0,0 +1,56 @@
-+import { describe, expect, test } from 'bun:test';
-+import { extractSessionAgent } from './session';
-+
-+describe('extractSessionAgent', () => {
-+  test('returns latest string info.agent from session messages', async () => {
-+    const client = {
-+      session: {
-+        messages: async () => ({
-+          data: [
-+            { info: { role: 'user', agent: 'librarian' }, parts: [] },
-+            { info: { role: 'assistant', agent: 'librarian' }, parts: [] },
-+          ],
-+        }),
-+      },
-+    } as any;
-+
-+    await expect(extractSessionAgent(client, 'ses_1')).resolves.toBe(
-+      'librarian',
-+    );
-+  });
-+
-+  test('returns the last available string agent when multiple message agents exist', async () => {
-+    const client = {
-+      session: {
-+        messages: async () => ({
-+          data: [
-+            { info: { role: 'user', agent: 'librarian' }, parts: [] },
-+            {
-+              info: { role: 'assistant', agent: 'librarian__task_fallback' },
-+              parts: [],
-+            },
-+          ],
-+        }),
-+      },
-+    } as any;
-+
-+    await expect(extractSessionAgent(client, 'ses_2')).resolves.toBe(
-+      'librarian__task_fallback',
-+    );
-+  });
-+
-+  test('returns undefined when no message contains a string agent', async () => {
-+    const client = {
-+      session: {
-+        messages: async () => ({
-+          data: [
-+            { info: { role: 'user' }, parts: [] },
-+            { info: { role: 'assistant', agent: null }, parts: [] },
-+          ],
-+        }),
-+      },
-+    } as any;
-+
-+    await expect(extractSessionAgent(client, 'ses_3')).resolves.toBeUndefined();
-+  });
-+});
-diff --git a/src/utils/session.ts b/src/utils/session.ts
-index fde214f..0b8cb00 100644
---- a/src/utils/session.ts
-+++ b/src/utils/session.ts
-@@ -6,6 +6,26 @@ import type { PluginInput } from '@opencode-ai/plugin';
- 
- type OpencodeClient = PluginInput['client'];
- 
-+export async function extractSessionAgent(
-+  client: OpencodeClient,
-+  sessionId: string,
-+): Promise<string | undefined> {
-+  const messagesResult = await client.session.messages({
-+    path: { id: sessionId },
-+  });
-+  const messages = (messagesResult.data ?? []) as Array<{
-+    info?: { agent?: unknown };
-+  }>;
-+
-+  for (const message of [...messages].reverse()) {
-+    const agent = message.info?.agent;
-+    if (typeof agent === 'string' && agent.length > 0) {
-+      return agent;
-+    }
-+  }
-+  return undefined;
-+}
-+
- /**
-  * Extract the short model label from a "provider/model" string.
-  * E.g. "openai/gpt-5.4-mini" → "gpt-5.4-mini"

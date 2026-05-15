@@ -1,4 +1,4 @@
-import type { AgentDefinition } from './orchestrator';
+﻿import type { AgentDefinition } from './orchestrator';
 
 const FIXER_PROMPT = `You are Fixer - a fast, focused implementation specialist.
 
@@ -17,7 +17,7 @@ const FIXER_PROMPT = `You are Fixer - a fast, focused implementation specialist.
 - NO external research (no websearch, context7, grep_app)
 - NO delegation or spawning subagents
 - No multi-step research/planning; minimal execution sequence ok
-- If context is insufficient: use grep/glob/read directly — do not delegate
+- If context is insufficient: use grep/glob/read directly 鈥?do not delegate
 - Only ask for missing inputs you truly cannot retrieve yourself
 - Do not act as the primary reviewer; implement requested changes and surface obvious issues briefly
 

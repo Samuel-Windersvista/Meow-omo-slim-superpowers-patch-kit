@@ -4,14 +4,23 @@
 
 This patch kit is currently validated against:
 
-- `superpowers v5.0.7`
-- `oh-my-opencode-slim v1.0.1`
+- `superpowers v5.1.0`
+- `oh-my-opencode-slim v1.1.0`
 
 ## Expectations for nearby versions
 
 Nearby newer versions are unvalidated; if patch hunks fail or runtime behavior differs, compare the target files against the paths listed below and your own local reference copies before proceeding.
 
 If your local versions are significantly older, upgrade first.
+
+### superpowers version drift
+
+If your superpowers version differs from v5.1.0:
+- Skill names referenced in permission allowlists may have changed or been removed.
+- The orchestrator-only skill list (`best-of-n-with-judge`, `update-memory`) should be verified against your superpowers skill inventory.
+- Prompt bridge instructions that reference specific superpowers skills (e.g., `superpowers:verification-before-completion`) should be checked for accuracy.
+
+### oh-my-opencode-slim version drift
 
 ## What to check when versions differ
 

@@ -1,5 +1,5 @@
 ---
-description: "Codebase reconnaissance scout (best-of-N variant beta). Identical methodology to @explorer with model claude-haiku-4-5 for vendor diversity."
+description: "Codebase reconnaissance scout (best-of-N variant beta). Identical methodology to @explorer. Model configured in bridge JSON."
 mode: subagent
 hidden: true
 permission:
