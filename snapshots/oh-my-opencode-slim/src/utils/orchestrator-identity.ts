@@ -53,3 +53,17 @@ export function isAnthropicPrimaryOrchestrator(
 export function isPivotedRootAgent(agentName: string | undefined): boolean {
   return agentName === PIVOT_TARGET_ORCHESTRATOR;
 }
+
+/**
+ * Return true if the given agent name is any form of orchestrator agent,
+ * including the base orchestrator, the pivot target, and any variant
+ * (e.g. `orchestrator-delta`). Used for classification and permission
+ * decisions that should apply to all orchestrator variants.
+ */
+export function isOrchestratorAgent(agentName: string | undefined): boolean {
+  return (
+    agentName === ANTHROPIC_PRIMARY_ORCHESTRATOR ||
+    agentName === PIVOT_TARGET_ORCHESTRATOR ||
+    (typeof agentName === 'string' && agentName.startsWith('orchestrator-'))
+  );
+}

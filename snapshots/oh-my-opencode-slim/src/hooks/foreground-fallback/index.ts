@@ -16,21 +16,11 @@
 
 import type { PluginInput } from '@opencode-ai/plugin';
 import { log } from '../../utils/logger';
-import {
-  ANTHROPIC_PRIMARY_ORCHESTRATOR,
-  isAnthropicPrimaryOrchestrator,
-  PIVOT_TARGET_MODEL,
-  PIVOT_TARGET_ORCHESTRATOR,
-} from '../../utils/orchestrator-identity';
 import { abortSessionWithTimeout } from '../../utils/session';
-import {
-  type CooldownStore,
-  createCooldownStore,
-  parseAnthropicCooldown,
-} from './cooldowns';
+import type { CooldownStore } from './cooldowns';
+import { parseAnthropicCooldown } from './cooldowns';
 
 type OpencodeClient = PluginInput['client'];
-type SessionAgentChangeHandler = (sessionID: string, agentName: string) => void;
 
 // ---------------------------------------------------------------------------
 // Rate-limit detection
@@ -47,7 +37,7 @@ const RATE_LIMIT_PATTERNS = [
   /usage limit/i,
   /overloaded/i,
   /resource.?exhausted/i,
-  /insufficient.?quota/i,
+  /insufficient.?(quota|balance)/i,
   /high concurrency/i,
   /reduce concurrency/i,
 ];
@@ -65,21 +55,6 @@ export function isRateLimitError(error: unknown): boolean {
     err.data?.responseBody ?? '',
   ].join(' ');
   return RATE_LIMIT_PATTERNS.some((p) => p.test(text));
-}
-
-/**
- * Extract response headers from a structured API error.
- * OpenCode exposes structured API errors on assistant messages and
- * session.error events with headers at error.data.responseHeaders.
- */
-function extractResponseHeaders(
-  error: unknown,
-): Record<string, string> | undefined {
-  if (!error || typeof error !== 'object') return undefined;
-  const err = error as { data?: { responseHeaders?: Record<string, string> } };
-  const headers = err.data?.responseHeaders;
-  if (!headers || typeof headers !== 'object') return undefined;
-  return headers as Record<string, string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -119,10 +94,6 @@ export class ForegroundFallbackManager {
   private readonly inProgress = new Set<string>();
   /** sessionID → timestamp of last trigger (for deduplication) */
   private readonly lastTrigger = new Map<string, number>();
-  /** task/subagent-owned child sessions (session.created with parentID) */
-  private readonly childSessions = new Set<string>();
-  /** Persistent cross-session cooldown tracker for cooled-down models */
-  private readonly cooldowns: CooldownStore;
 
   constructor(
     private readonly client: OpencodeClient,
@@ -133,33 +104,15 @@ export class ForegroundFallbackManager {
      */
     private readonly chains: Record<string, string[]>,
     private readonly enabled: boolean,
-    cooldowns?: CooldownStore,
-    private readonly onSessionAgentChange?: SessionAgentChangeHandler,
-  ) {
-    this.cooldowns = cooldowns ?? createCooldownStore();
-  }
-
-  /** Expose the cooldown store (used by startup-time model selection). */
-  getCooldownStore(): CooldownStore {
-    return this.cooldowns;
-  }
+    private readonly cooldowns?: CooldownStore,
+  ) {}
 
   /**
-   * Capture an Anthropic-style cooldown for the model that just hit a rate
-   * limit. Idempotent: only records forward-looking reset times.
+   * Expose the cooldown store so the plugin can use it for startup-time
+   * model selection in the config hook.
    */
-  private captureCooldown(sessionID: string, error: unknown): void {
-    const currentModel = this.sessionModel.get(sessionID);
-    if (!currentModel) return;
-    const headers = extractResponseHeaders(error);
-    const epoch = parseAnthropicCooldown(headers);
-    if (epoch === null) return;
-    this.cooldowns.set(currentModel, epoch);
-    log('[foreground-fallback] recorded model cooldown', {
-      sessionID,
-      model: currentModel,
-      until: new Date(epoch).toISOString(),
-    });
+  getCooldownStore(): CooldownStore | undefined {
+    return this.cooldowns;
   }
 
   /**
@@ -172,18 +125,6 @@ export class ForegroundFallbackManager {
     if (!event?.type) return;
 
     switch (event.type) {
-      case 'session.created': {
-        const props = event.properties as
-          | { info?: { id?: string; parentID?: string | null } }
-          | undefined;
-        const id = props?.info?.id;
-        const parentID = props?.info?.parentID;
-        if (id && parentID) {
-          this.childSessions.add(id);
-        }
-        break;
-      }
-
       case 'message.updated': {
         const info = (
           event.properties as { info?: Record<string, unknown> } | undefined
@@ -240,6 +181,7 @@ export class ForegroundFallbackManager {
           msg.includes('quota exceeded') ||
           msg.includes('exceededbudget') ||
           msg.includes('over budget') ||
+          msg.includes('insufficient') ||
           msg.includes('high concurrency') ||
           msg.includes('reduce concurrency')
         ) {
@@ -253,11 +195,8 @@ export class ForegroundFallbackManager {
         const props = event.properties as
           | { sessionID?: string; agentName?: unknown }
           | undefined;
-        if (props?.sessionID) {
-          this.childSessions.add(props.sessionID);
-          if (typeof props.agentName === 'string') {
-            this.sessionAgent.set(props.sessionID, props.agentName);
-          }
+        if (props?.sessionID && typeof props.agentName === 'string') {
+          this.sessionAgent.set(props.sessionID, props.agentName);
         }
         break;
       }
@@ -277,7 +216,6 @@ export class ForegroundFallbackManager {
           this.sessionModel.delete(id);
           this.sessionAgent.delete(id);
           this.sessionTried.delete(id);
-          this.childSessions.delete(id);
           this.inProgress.delete(id);
           this.lastTrigger.delete(id);
         }
@@ -292,33 +230,7 @@ export class ForegroundFallbackManager {
 
   private async tryFallback(sessionID: string): Promise<void> {
     if (!sessionID) return;
-    if (this.shouldPivotOrchestrator(sessionID)) {
-      await this.pivotOrchestrator(sessionID);
-      return;
-    }
-    await this.chainWalkFallback(sessionID);
-  }
-
-  /**
-   * Return true if a fallback trigger on this session should perform the
-   * one-shot orchestrator -> orchestrator-beta pivot rather than the
-   * generic chain-walk.
-   */
-  private shouldPivotOrchestrator(sessionID: string): boolean {
-    if (this.childSessions.has(sessionID)) return false;
-    return isAnthropicPrimaryOrchestrator(this.sessionAgent.get(sessionID));
-  }
-
-  private async chainWalkFallback(sessionID: string): Promise<void> {
-    if (!sessionID) return;
     if (this.inProgress.has(sessionID)) return;
-
-    if (this.childSessions.has(sessionID)) {
-      log('[foreground-fallback] child session mid-flight fallback disabled', {
-        sessionID,
-      });
-      return;
-    }
 
     // Deduplicate: multiple events can fire for a single rate-limit event.
     const now = Date.now();
@@ -345,12 +257,14 @@ export class ForegroundFallbackManager {
       const tried = this.sessionTried.get(sessionID)!;
       if (currentModel) tried.add(currentModel);
 
-      let nextModel = chain.find(
-        (m) => !tried.has(m) && !this.cooldowns.isCoolingDown(m),
-      );
-      if (!nextModel) {
-        nextModel = chain.find((m) => !tried.has(m));
-      }
+      // Prefer models not currently in cooldown so the first attempt of
+      // every new session hits a working model directly.
+      const chainCandidates = this.cooldowns
+        ? chain.filter((m) => !this.cooldowns!.isCoolingDown(m))
+        : chain;
+      const nextModel =
+        chainCandidates.find((m) => !tried.has(m)) ??
+        chain.find((m) => !tried.has(m));
       if (!nextModel) {
         log('[foreground-fallback] fallback chain exhausted', {
           sessionID,
@@ -441,90 +355,37 @@ export class ForegroundFallbackManager {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Cooldown capture
+  // ---------------------------------------------------------------------------
+
   /**
-   * One-shot pivot from the anthropic-primary orchestrator to
-   * orchestrator-beta using gpt-5.4.
+   * Parse rate-limit response headers and persist the cooldown so future
+   * sessions skip this model until the reset time.
    */
-  private async pivotOrchestrator(sessionID: string): Promise<void> {
-    if (!sessionID) return;
-    if (this.inProgress.has(sessionID)) return;
+  private captureCooldown(sessionID: string, error: unknown): void {
+    if (!this.cooldowns) return;
+    const err = error as {
+      data?: { responseHeaders?: Record<string, string> };
+    };
+    const headers = err?.data?.responseHeaders;
+    if (!headers) return;
+    const resetEpoch = parseAnthropicCooldown(headers);
+    if (resetEpoch === null) return;
 
-    const now = Date.now();
-    if (now - (this.lastTrigger.get(sessionID) ?? 0) < DEDUP_WINDOW_MS) return;
-    this.lastTrigger.set(sessionID, now);
-
-    this.inProgress.add(sessionID);
-    try {
-      const result = await this.client.session.messages({
-        path: { id: sessionID },
-      });
-      const messages = (result.data ?? []) as Array<{
-        info: { role: string };
-        parts: unknown[];
-      }>;
-      const lastUser = [...messages]
-        .reverse()
-        .find((m) => m.info.role === 'user');
-      if (!lastUser) {
-        log('[orchestrator-pivot] no user message found', { sessionID });
-        return;
-      }
-
-      const sessionClient = this.client.session as unknown as {
-        promptAsync?: (args: {
-          path: { id: string };
-          body: {
-            parts: unknown[];
-            model: { providerID: string; modelID: string };
-            agent?: string;
-          };
-        }) => Promise<unknown>;
-      };
-      if (typeof sessionClient.promptAsync !== 'function') {
-        log('[orchestrator-pivot] promptAsync unavailable', { sessionID });
-        return;
-      }
-
-      try {
-        await abortSessionWithTimeout(this.client, sessionID);
-      } catch (error) {
-        log('[orchestrator-pivot] abort did not complete cleanly', {
-          sessionID,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-
-      await new Promise((r) => setTimeout(r, REPROMPT_DELAY_MS));
-
-      await sessionClient.promptAsync({
-        path: { id: sessionID },
-        body: {
-          parts: lastUser.parts,
-          model: PIVOT_TARGET_MODEL,
-          agent: PIVOT_TARGET_ORCHESTRATOR,
-        },
-      });
-
-      this.sessionAgent.set(sessionID, PIVOT_TARGET_ORCHESTRATOR);
-      this.onSessionAgentChange?.(sessionID, PIVOT_TARGET_ORCHESTRATOR);
-      this.sessionModel.set(
+    // Extract provider/model from the same error if available
+    const errWithRef = error as {
+      data?: { providerID?: string; modelID?: string };
+    };
+    const provider = errWithRef?.data?.providerID;
+    const model = errWithRef?.data?.modelID;
+    if (provider && model) {
+      this.cooldowns.set(`${provider}/${model}`, resetEpoch);
+      log('[foreground-fallback] captured cooldown', {
         sessionID,
-        `${PIVOT_TARGET_MODEL.providerID}/${PIVOT_TARGET_MODEL.modelID}`,
-      );
-
-      log('[orchestrator-pivot] switched to orchestrator-beta', {
-        sessionID,
-        from: ANTHROPIC_PRIMARY_ORCHESTRATOR,
-        to: PIVOT_TARGET_ORCHESTRATOR,
-        model: `${PIVOT_TARGET_MODEL.providerID}/${PIVOT_TARGET_MODEL.modelID}`,
+        model: `${provider}/${model}`,
+        resetEpoch,
       });
-    } catch (err) {
-      log('[orchestrator-pivot] pivot failed', {
-        sessionID,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    } finally {
-      this.inProgress.delete(sessionID);
     }
   }
 

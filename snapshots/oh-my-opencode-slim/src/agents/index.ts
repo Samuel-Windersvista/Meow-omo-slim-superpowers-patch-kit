@@ -1,6 +1,5 @@
 import type { AgentConfig as SDKAgentConfig } from '@opencode-ai/sdk/v2';
 import { getSkillPermissionsForAgent } from '../cli/skills';
-import { isOrchestratorAgent } from '../cli/superpowers-policy';
 import {
   type AgentOverrideConfig,
   ALL_AGENT_NAMES,
@@ -13,8 +12,9 @@ import {
   PROTECTED_AGENTS,
   SUBAGENT_NAMES,
 } from '../config';
-import { getRestrictedMcpDenies } from '../config/agent-mcp-blacklist';
 import { getAgentMcpList } from '../config/agent-mcps';
+import { getRestrictedMcpDenies } from '../config/agent-mcp-blacklist';
+import { isOrchestratorAgent } from '../utils/orchestrator-identity';
 
 import { createCouncilAgent } from './council';
 import { createCouncillorAgent } from './councillor';
@@ -39,9 +39,8 @@ type AgentFactory = (
 ) => AgentDefinition;
 
 const COUNCIL_TOOL_ALLOWED_AGENTS = new Set(['council']);
+const CANCEL_TASK_ALLOWED_AGENTS = new Set(['orchestrator']);
 const SAFE_AGENT_ALIAS_RE = /^[a-z][a-z0-9_-]*$/i;
-const TASK_FALLBACK_AGENT_SUFFIX = '__task_fallback';
-const ANTHROPIC_PROVIDER_PREFIX = 'gauge-forge-anthropic/';
 
 function normalizeDisplayName(displayName: string): string {
   const trimmed = displayName.trim();
@@ -54,43 +53,6 @@ function isSafeDisplayName(displayName: string): boolean {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-export function getTaskFallbackShadowName(agentName: string): string {
-  return `${agentName}${TASK_FALLBACK_AGENT_SUFFIX}`;
-}
-
-function getTaskFallbackShadowConfig(
-  agent: AgentDefinition,
-  sdkConfig: SDKAgentConfig & {
-    mcps?: string[];
-    displayName?: string;
-    hidden?: boolean;
-  },
-): [string, SDKAgentConfig] | undefined {
-  const models = agent._modelArray;
-  if (!models || models.length < 2) {
-    return undefined;
-  }
-
-  const [primary, backup] = models;
-  if (!primary?.id.startsWith(ANTHROPIC_PROVIDER_PREFIX)) {
-    return undefined;
-  }
-
-  const shadowConfig: SDKAgentConfig & {
-    mcps?: string[];
-    displayName?: string;
-    hidden?: boolean;
-  } = {
-    ...sdkConfig,
-    model: backup.id,
-    hidden: true,
-    mode: 'primary',
-    ...(backup.variant ? { variant: backup.variant } : { variant: undefined }),
-  };
-  shadowConfig.displayName = undefined;
-  return [getTaskFallbackShadowName(agent.name), shadowConfig];
 }
 
 // Agent Configuration Helpers
@@ -220,11 +182,15 @@ function applyDefaultPermissions(
   const councilSessionPerm = COUNCIL_TOOL_ALLOWED_AGENTS.has(agent.name)
     ? (existing.council_session ?? 'allow')
     : 'deny';
+  const cancelTaskPerm = CANCEL_TASK_ALLOWED_AGENTS.has(agent.name)
+    ? (existing.cancel_task ?? 'allow')
+    : 'deny';
 
   agent.config.permission = {
     ...existing,
     question: questionPerm,
     council_session: councilSessionPerm,
+    cancel_task: cancelTaskPerm,
     // Apply skill permissions as nested object under 'skill' key
     skill: {
       ...(typeof existing.skill === 'object' ? existing.skill : {}),
@@ -490,9 +456,6 @@ export function getAgentConfigs(
     } else if (isSubagent(name)) {
       sdkConfig.mode = 'subagent';
     } else if (isOrchestratorAgent(name)) {
-      // "orchestrator", "orchestrator-beta", "orchestrator2", ... all become
-      // primary agents so users can switch to a fallback when their main
-      // orchestrator's model rate-limits.
       sdkConfig.mode = 'primary';
     } else {
       sdkConfig.mode = 'subagent';
@@ -520,41 +483,33 @@ export function getAgentConfigs(
 
     applyClassification(a.name, sdkConfig);
 
-      // Apply closed-set restricted MCP blacklist.
-      // Non-operator agents receive explicit deny rules for windows-mcp,
-      // chrome-devtools, and/or playwright. Operator agents receive nothing,
-      // leaving those MCPs implicit-allow and future-safe for new MCPs.
-      const restrictedDenies = getRestrictedMcpDenies(a.name);
-      if (restrictedDenies.length > 0) {
-        const existingPerm = (sdkConfig.permission ?? {}) as Record<
-          string,
-          unknown
-        >;
-        for (const mcp of restrictedDenies) {
-          const sanitized = mcp.replace(/[^a-zA-Z0-9_-]/g, '_');
-          existingPerm[`${sanitized}_*`] = 'deny';
+    // --- patch-kit v2: restricted MCP deny rules ---
+    {
+      const restrictedMCPs = getRestrictedMcpDenies(a.name);
+      if (restrictedMCPs.length > 0) {
+        const denyRules: Record<string, 'deny'> = {};
+        for (const mcp of restrictedMCPs) {
+          denyRules[`${mcp}_*`] = 'deny';
         }
-        sdkConfig.permission = existingPerm as typeof sdkConfig.permission;
+        sdkConfig.permission = {
+          ...((sdkConfig.permission ?? {}) as Record<string, unknown>),
+          ...denyRules,
+        } as SDKAgentConfig['permission'];
       }
+    }
+    // --- end patch-kit v2 ---
 
-     const normalizedDisplayName = a.displayName
-       ? normalizeDisplayName(a.displayName)
-       : undefined;
-      const shadow = getTaskFallbackShadowConfig(a, sdkConfig);
+    const normalizedDisplayName = a.displayName
+      ? normalizeDisplayName(a.displayName)
+      : undefined;
 
-     if (normalizedDisplayName && !isInternalOnly(a.name)) {
-       entries.push([normalizedDisplayName, sdkConfig]);
-       entries.push([a.name, { ...sdkConfig, hidden: true }]);
-        if (shadow) {
-          entries.push(shadow);
-        }
-        continue;
-      }
+    if (normalizedDisplayName && !isInternalOnly(a.name)) {
+      entries.push([normalizedDisplayName, sdkConfig]);
+      entries.push([a.name, { ...sdkConfig, hidden: true }]);
+      continue;
+    }
 
-      entries.push([a.name, sdkConfig]);
-      if (shadow) {
-        entries.push(shadow);
-      }
+    entries.push([a.name, sdkConfig]);
   }
 
   return Object.fromEntries(entries);

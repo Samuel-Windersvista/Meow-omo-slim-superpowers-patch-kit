@@ -44,7 +44,7 @@
           { "id": "gauge-forge-anthropic/claude-opus-4-7", "variant": "high" },
           { "id": "gauge-forge-openai/gpt-5.4",            "variant": "xhigh" }
         ],
-        "mcps": ["websearch", "context7", "grep_app"]
+        "mcps": ["websearch", "context7", "gh_grep"]
       },
       "explorer": {
         "model": "gauge-forge-openai/gpt-5.4",
@@ -180,13 +180,13 @@
           { "id": "gauge-forge-anthropic/claude-opus-4-7", "variant": "high" },
           { "id": "gauge-forge-openai/gpt-5.4",            "variant": "xhigh" }
         ],
-        "mcps": ["websearch", "context7", "grep_app"],
+        "mcps": ["websearch", "context7", "gh_grep"],
         "orchestratorPrompt": "@librarian-alpha\n- Variant of @librarian for best-of-N or ideation fan-out. Model: claude-opus-4-7 + high (primary research lane).\n- Dispatch via best-of-n-with-judge ideation sub-mode or fan-out skill orchestration, not directly."
       },
       "librarian-beta": {
         "model": "gauge-forge-openai/gpt-5.5",
         "variant": "high",
-        "mcps": ["websearch", "context7", "grep_app"],
+        "mcps": ["websearch", "context7", "gh_grep"],
         "orchestratorPrompt": "@librarian-beta\n- Variant of @librarian for best-of-N or ideation fan-out. Model: gpt-5.5 + high (vendor-diverse research lane).\n- Dispatch via best-of-n-with-judge ideation sub-mode or fan-out skill orchestration, not directly."
       },
 

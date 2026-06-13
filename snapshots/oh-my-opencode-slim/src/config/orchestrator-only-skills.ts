@@ -26,3 +26,22 @@ export function isReservedSkillAllowed(agentName: string): boolean {
     agentName === 'orchestrator-delta'
   );
 }
+
+/**
+ * Apply reserved orchestrator-only skill denials to a permissions object.
+ * Any agent that is NOT an orchestrator variant will have reserved skills
+ * explicitly denied in the given permissions map.
+ *
+ * @param agentName - The name of the agent to check
+ * @param permissions - Mutable permissions map to update in-place
+ */
+export function applyReservedSkillOverrides(
+  agentName: string,
+  permissions: Record<string, 'allow' | 'ask' | 'deny'>,
+): void {
+  for (const skill of RESERVED_ORCHESTRATOR_ONLY_SKILLS) {
+    if (!isReservedSkillAllowed(agentName)) {
+      permissions[skill] = 'deny';
+    }
+  }
+}
